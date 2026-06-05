@@ -38,11 +38,12 @@ function isSutdaUsableCard(card) {
   return Boolean(card && (card.suit === "♥" || card.suit === "♠") && card.month >= 1 && card.month <= 10);
 }
 
-function renderCard(card) {
-  if (!card) return `<img class="card image-card back" src="./assets/cards/back.png" alt="뒷면">`;
+function renderCard(card, extraClass = "") {
+  const classes = extraClass ? ` ${extraClass}` : "";
+  if (!card) return `<img class="card image-card back${classes}" src="./assets/cards/back.png" alt="뒷면">`;
   const sutdaClass = isSutdaUsableCard(card) ? " sutda-usable-card" : "";
   const sutdaTitle = isSutdaUsableCard(card) ? " · 섯다 사용 가능" : "";
-  return `<img class="card image-card${sutdaClass}" src="${cardImagePath(card)}" alt="${card.rank}${card.suit}" title="${card.rank}${card.suit}${sutdaTitle}">`;
+  return `<img class="card image-card${sutdaClass}${classes}" src="${cardImagePath(card)}" alt="${card.rank}${card.suit}" title="${card.rank}${card.suit}${sutdaTitle}">`;
 }
 
 function render() {
@@ -148,7 +149,7 @@ function renderSettlement() {
     settlementPanel.innerHTML = "";
     return;
   }
-  boardPanel.hidden = true;
+  boardPanel.hidden = false;
   settlementPanel.hidden = false;
   const awards = snapshot.result.awards || [];
   settlementPanel.innerHTML = `
@@ -193,11 +194,13 @@ function escapeHtml(value) {
 
 function renderAward(award) {
   const winners = award.winners.map((winner) => `${winner.name} ${winner.position}`).join(", ");
+  const hands = award.winners.map((winner) => winner.hand ? `${winner.name}: ${winner.hand}` : "").filter(Boolean).join(" / ");
   return `
     <article class="award-row">
       <span class="award-label">${award.label}</span>
       <strong>${winners}</strong>
       <span>팟 ${award.amount} · ${award.share}씩 획득${award.dealerFee ? ` · 딜러비 ${award.dealerFee}` : ""}</span>
+      ${hands ? `<span class="award-hand">${hands}</span>` : ""}
     </article>
   `;
 }
@@ -269,11 +272,12 @@ function renderPlayer(player) {
   const owned = player.mine;
   const actionText = isActive ? "액션 중" : (player.lastAction || (player.ai ? "AI 대기" : "대기"));
   const kickButton = player.canKick ? `<button class="kick-button" type="button" data-kick-seat="${player.id}" title="강퇴">강퇴</button>` : "";
+  const declaration = snapshot.showdown && !player.folded && player.mode !== "hidden" ? `<span class="declaration-badge">${modeLabel(player.mode)}</span>` : "";
   return `
     <article class="player seat ${isActive ? "active-player" : ""} ${player.folded ? "folded-player" : ""} ${owned ? "my-seat" : "opponent-seat"}" style="--seat-x:${seat[0]}%; --seat-y:${seat[1]}%;">
       <div class="player-head">
         <div>
-          <h2>${player.name} <span class="position">${player.position}</span></h2>
+          <h2>${player.name} <span class="position">${player.position}</span>${declaration}</h2>
         </div>
         <div class="player-tools">
           <strong>칩 ${player.stack}</strong>
@@ -281,7 +285,7 @@ function renderPlayer(player) {
         </div>
       </div>
       <div class="seat-main">
-        <div class="cards hand-cards ${owned ? "my-hand-cards" : ""}">${player.cards.map(renderCard).join("")}</div>
+        <div class="cards hand-cards ${owned ? "my-hand-cards" : ""}">${renderPlayerCards(player)}</div>
         <div class="made-panel">
           <span>섯다 최고 <strong>${player.sutdaOutput || (owned ? "불성립" : "-")}</strong></span>
           <span>홀덤 최고 <strong>${player.holdemOutput || (owned ? "대기" : "-")}</strong></span>
@@ -293,6 +297,21 @@ function renderPlayer(player) {
       </div>
     </article>
   `;
+}
+
+function renderPlayerCards(player) {
+  if (!snapshot.showdown || player.mode === "hidden" || player.folded) return player.cards.map((card) => renderCard(card)).join("");
+  if (player.mode === "sutda") {
+    return player.cards.map((card) => (card && card.id === player.sutdaCard ? renderCard(card, "sutda-showdown-card") : renderCard(null, "showdown-hidden-card"))).join("");
+  }
+  if (player.mode === "swing") {
+    return player.cards.map((card) => renderCard(card, card && card.id === player.sutdaCard ? "swing-sutda-card" : "")).join("");
+  }
+  return player.cards.map((card) => renderCard(card)).join("");
+}
+
+function modeLabel(mode) {
+  return ({ holdem: "홀덤", sutda: "섯다", swing: "스윙" }[mode] || "");
 }
 
 function actionClass(player) {

@@ -269,7 +269,7 @@ function minRaiseTo(player) {
 function publicPlayer(player, clientId) {
   const occupied = isOccupied(player);
   const mine = isOwner(player, clientId);
-  const showCards = occupied && (mine || state.showdown);
+  const showCards = occupied && !player.folded && (mine || state.showdown);
   return {
     id: player.id,
     name: player.name,
@@ -657,8 +657,20 @@ function awardPlayers(winners, amount, label, logs) {
     amount,
     share: split,
     dealerFee,
-    winners: winners.map((player) => ({ id: player.id, name: player.name, position: player.position }))
+    winners: winners.map((player) => ({ id: player.id, name: player.name, position: player.position, hand: awardHandSummary(player, label) }))
   };
+}
+
+function awardHandSummary(player, label) {
+  if (label.includes("홀덤")) return evaluateHoldem([...player.cards, ...state.community]).name;
+  if (label.includes("섯다")) return evaluateSutdaPlayer(player).name;
+  if (label.includes("스윙") && !label.includes("실패")) {
+    return `홀덤 ${evaluateHoldem([...player.cards, ...state.community]).name} / 섯다 ${evaluateSutdaPlayer(player).name}`;
+  }
+  if (player.mode === "holdem") return evaluateHoldem([...player.cards, ...state.community]).name;
+  if (player.mode === "sutda") return evaluateSutdaPlayer(player).name;
+  if (player.mode === "swing") return `홀덤 ${evaluateHoldem([...player.cards, ...state.community]).name} / 섯다 ${evaluateSutdaPlayer(player).name}`;
+  return "";
 }
 
 function resolveSutdaRetry(results, currentWinners, logs) {
