@@ -6,11 +6,11 @@ const viewports = [
 
 const panelModes = {
   normal: {
-    opponent: { width: 96, height: 58 },
+    opponent: { width: 90, height: 58 },
     mine: { width: 148, height: 130 }
   },
   showdown: {
-    opponent: { width: 96, height: 62 },
+    opponent: { width: 90, height: 62 },
     mine: { width: 148, height: 130 }
   }
 };
@@ -34,9 +34,9 @@ function stageFor(viewport) {
 }
 
 function gridFor(stage) {
-  const padding = { left: 12, right: 12, top: 8, bottom: 2 };
+  const padding = { left: 8, right: 8, top: 8, bottom: 2 };
   const gapY = 4;
-  const colWidths = [112, stage.width - padding.left - padding.right - 224, 112];
+  const colWidths = [96, stage.width - padding.left - padding.right - 192, 96];
   const fixedRows = [54, 68, 68, 132];
   const row3 = Math.max(36, stage.height - padding.top - padding.bottom - fixedRows.reduce((a, b) => a + b, 0) - gapY * 4);
   const rowHeights = [54, 68, row3, 68, 132];

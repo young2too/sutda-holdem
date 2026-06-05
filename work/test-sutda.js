@@ -74,3 +74,25 @@ JSON.stringify({
 const retryResult = JSON.parse(vm.runInContext(retryScript, ctx));
 console.log(JSON.stringify(retryResult, null, 2));
 if (retryResult.winner !== "Sutda" || !retryResult.log.includes("2장 재경기")) process.exit(1);
+
+const selectedBoardScript = `
+function c(rank, suit) {
+  return {
+    id: rank + suit,
+    rank,
+    suit,
+    month: rank === "A" ? 1 : Number(rank),
+    value: rank === "A" ? 14 : Number(rank)
+  };
+}
+state.community = [c("4", "♠"), c("6", "♠")];
+const player = { mode: "sutda", cards: [c("9", "♠"), c("9", "♥")], sutdaCard: "9♠", sutdaBoardCard: "4♠" };
+JSON.stringify({
+  selected: evaluateSutdaPlayer(player).name,
+  auto: evaluateSutdaFromCard(player.cards[0]).name
+});
+`;
+
+const selectedBoardResult = JSON.parse(vm.runInContext(selectedBoardScript, ctx));
+console.log(JSON.stringify(selectedBoardResult, null, 2));
+if (selectedBoardResult.selected !== "멍사구" || selectedBoardResult.auto === "멍사구") process.exit(1);

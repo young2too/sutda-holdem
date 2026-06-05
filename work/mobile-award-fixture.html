@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mobile award fixture</title>
+  <link rel="stylesheet" href="../outputs/styles.css?v=mobile-award-2">
+</head>
+<body>
+  <main class="app">
+    <section class="table-area">
+      <header class="topbar">
+        <div>
+          <h1>화투럼프 섯다 홀덤</h1>
+        </div>
+        <div class="table-controls">
+          <label>인원<select><option>6인</option></select></label>
+          <label class="nickname-field">닉네임<input value="연근"></label>
+          <button>닉변</button>
+          <button class="mobile-chat-button"><span></span></button>
+          <details class="mobile-menu"><summary><span></span><span></span><span></span></summary></details>
+        </div>
+      </header>
+      <div class="connection-status">연근 접속 중 · 방장. 현재 포지션: SB</div>
+      <div class="score-strip">
+        <div><span>전체 팟</span><strong>0</strong></div>
+        <div><span>홀덤 팟</span><strong>0</strong></div>
+        <div><span>섯다 팟</span><strong>0</strong></div>
+        <div><span>현재 베팅</span><strong>0</strong></div>
+      </div>
+      <section class="table-stage">
+        <div class="poker-table">
+          <div class="table-center">
+            <div class="board-panel">
+              <div class="section-title"><h2>커뮤니티</h2><span>쇼다운</span></div>
+              <div class="cards board-cards">
+                <img class="card" src="../outputs/assets/cards/5_spade.png" alt="">
+                <img class="card" src="../outputs/assets/cards/4_spade.png" alt="">
+                <img class="card" src="../outputs/assets/cards/9_diamond.png" alt="">
+                <img class="card" src="../outputs/assets/cards/6_spade.png" alt="">
+                <img class="card" src="../outputs/assets/cards/7_heart.png" alt="">
+              </div>
+              <div class="center-pot"><span>팟</span><strong>0</strong></div>
+            </div>
+          </div>
+        </div>
+        <section class="players table-seats showdown-seats count-6">
+          <article class="player seat my-seat" style="--seat-x:50%; --seat-y:86%;">
+            <div class="player-head"><h2>연근 <span class="position">SB</span><span class="declaration-badge">섯다</span></h2><div class="player-tools"><strong>칩 990</strong></div></div>
+            <div class="seat-main"><div class="cards hand-cards my-hand-cards"><img class="card" src="../outputs/assets/cards/back.png" alt=""><img class="card" src="../outputs/assets/cards/9_spade.png" alt=""></div><div class="made-panel"><span>섯다 최고 <strong>6끗</strong></span><span>홀덤 최고 <strong>9,4투페어</strong></span></div></div>
+          </article>
+          <article class="player seat opponent-seat" style="--seat-x:20%; --seat-y:70%;"><div class="player-head"><h2>AI 2 <span class="position">BB</span><span class="declaration-badge">홀덤</span></h2></div><div class="seat-main"><div class="cards hand-cards"><img class="card" src="../outputs/assets/cards/A_heart.png" alt=""><img class="card" src="../outputs/assets/cards/K_spade.png" alt=""></div></div></article>
+          <article class="player seat opponent-seat" style="--seat-x:20%; --seat-y:30%;"><div class="player-head"><h2>AI 3 <span class="position">UTG</span><span class="declaration-badge">홀덤</span></h2></div><div class="seat-main"><div class="cards hand-cards"><img class="card" src="../outputs/assets/cards/2_heart.png" alt=""><img class="card" src="../outputs/assets/cards/Q_spade.png" alt=""></div></div></article>
+          <article class="player seat opponent-seat" style="--seat-x:50%; --seat-y:16%;"><div class="player-head"><h2>AI 4 <span class="position">MP</span><span class="declaration-badge">홀덤</span></h2></div><div class="seat-main"><div class="cards hand-cards"><img class="card" src="../outputs/assets/cards/J_spade.png" alt=""><img class="card" src="../outputs/assets/cards/J_heart.png" alt=""></div></div></article>
+          <article class="player seat opponent-seat winner-seat" style="--seat-x:80%; --seat-y:30%;">
+            <div class="player-awards"><span class="player-award-badge"><strong>홀덤</strong><span class="player-award-hand">K원페어</span><b>60</b></span></div>
+            <div class="player-head"><h2>AI 5 <span class="position">CO</span><span class="declaration-badge">홀덤</span></h2></div>
+            <div class="seat-main"><div class="cards hand-cards"><img class="card" src="../outputs/assets/cards/K_diamond.png" alt=""><img class="card" src="../outputs/assets/cards/3_spade.png" alt=""></div></div>
+          </article>
+          <article class="player seat opponent-seat winner-seat" style="--seat-x:80%; --seat-y:70%;">
+            <div class="player-awards"><span class="player-award-badge"><strong>섯다</strong><span class="player-award-hand">6땡</span><b>60</b></span></div>
+            <div class="player-head"><h2>AI 6 <span class="position">BTN</span><span class="declaration-badge">섯다</span></h2></div>
+            <div class="seat-main"><div class="cards hand-cards"><img class="card" src="../outputs/assets/cards/6_spade.png" alt=""><img class="card" src="../outputs/assets/cards/6_heart.png" alt=""></div></div>
+          </article>
+        </section>
+      </section>
+      <footer class="actions">
+        <div class="action-info"><strong>핸드 종료</strong><span>정산 완료</span></div>
+        <button>체크/콜</button><button>베팅/레이즈</button><button>폴드</button>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>

@@ -357,85 +357,8 @@ button:disabled {
   color: var(--gold);
 }
 
-.settlement-panel {
-  display: grid;
-  gap: 10px;
-  width: min(100%, 380px);
-  min-height: 130px;
-  align-content: center;
-  margin: 0 auto;
-  border: 1px solid rgba(223, 186, 99, 0.55);
-  border-radius: 8px;
-  padding: 12px;
-  background: rgba(5, 22, 19, 0.82);
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28);
-}
-
-.board-panel[hidden],
-.settlement-panel[hidden] {
+.board-panel[hidden] {
   display: none;
-}
-
-.settlement-title {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.settlement-title span {
-  color: var(--gold);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.settlement-title strong {
-  color: var(--ink);
-  font-size: 22px;
-}
-
-.settlement-awards {
-  display: grid;
-  gap: 8px;
-}
-
-.award-row {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: 4px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  padding: 7px 9px;
-  background: rgba(255, 255, 255, 0.06);
-  text-align: left;
-}
-
-.award-row strong {
-  color: var(--ink);
-}
-
-.award-row span:last-child {
-  grid-column: 2;
-  font-size: 11px;
-}
-
-.award-hand {
-  grid-column: 2;
-  color: var(--gold);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.award-label {
-  grid-row: span 2;
-  align-self: center;
-  justify-self: start;
-  border: 1px solid rgba(223, 186, 99, 0.55);
-  border-radius: 999px;
-  padding: 4px 8px;
-  color: var(--gold);
-  font-size: 12px;
-  font-weight: 800;
 }
 
 .players.table-seats {
@@ -444,17 +367,69 @@ button:disabled {
   z-index: 3;
 }
 
+.players.showdown-seats {
+  z-index: 12;
+}
+
 .players.showdown-seats .player {
-  opacity: 0.72;
+  opacity: 1;
 }
 
 .player {
+  position: relative;
   width: 196px;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 9px;
   background: rgba(13, 25, 23, 0.68);
 }
+
+.player-awards {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  z-index: 16;
+  min-width: max-content;
+  display: grid;
+  gap: 4px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.winner-seat {
+  z-index: 28;
+}
+
+.winner-seat .player-awards {
+  z-index: 29;
+}
+
+.player-award-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(223, 186, 99, 0.78);
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(5, 22, 19, 0.94);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
+}
+
+.player-award-badge strong,
+.player-award-badge b {
+  color: var(--gold);
+}
+
+.player-award-hand {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 
 .empty-seat {
   min-height: 64px;
@@ -808,7 +783,7 @@ select {
 .showdown-controls {
   flex-basis: 100%;
   display: grid;
-  grid-template-columns: minmax(130px, 180px) minmax(150px, 240px) auto;
+  grid-template-columns: minmax(120px, 160px) minmax(130px, 190px) minmax(130px, 190px) auto;
   align-items: end;
   justify-content: center;
   gap: 10px;
@@ -1237,10 +1212,21 @@ select {
     position: relative;
     grid-template-rows: auto auto auto minmax(0, 1fr) auto;
     gap: 6px;
+    width: 100%;
+    max-width: 100%;
     height: calc(100dvh - 12px);
     min-height: 0;
     padding: 7px;
     overflow: hidden;
+  }
+
+  .topbar,
+  .table-controls,
+  .score-strip,
+  .table-stage,
+  .actions {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .topbar {
@@ -1271,6 +1257,7 @@ select {
   }
 
   .nickname-field input {
+    min-width: 0;
     width: 100%;
   }
 
@@ -1390,11 +1377,15 @@ select {
   }
 
   .players.table-seats {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: calc(100vw - 26px);
+    max-width: calc(100vw - 26px);
     display: grid;
-    grid-template-columns: 112px minmax(0, 1fr) 112px;
+    grid-template-columns: 96px minmax(0, 1fr) 96px;
     grid-template-rows: 54px 68px minmax(36px, 1fr) 68px 132px;
     gap: 4px 0;
-    padding: 8px 12px 2px;
+    padding: 8px 8px 2px;
     pointer-events: none;
   }
 
@@ -1440,7 +1431,9 @@ select {
   }
 
   .seat {
-    position: static;
+    position: relative;
+    left: auto;
+    top: auto;
     transform: none;
     align-self: center;
     justify-self: center;
@@ -1448,7 +1441,7 @@ select {
   }
 
   .opponent-seat {
-    width: 96px;
+    width: 90px;
     padding: 5px 6px;
   }
 
@@ -1576,7 +1569,7 @@ select {
   }
 
   .showdown-seats .opponent-seat {
-    width: 96px;
+    width: 90px;
   }
 
   .showdown-seats .opponent-seat .player-tools,
@@ -1605,6 +1598,44 @@ select {
     min-height: 17px;
     padding: 0 5px;
     font-size: 9px;
+  }
+
+  .showdown-seats .player-awards {
+    top: 4px;
+    right: 4px;
+    bottom: auto;
+    left: 4px;
+    min-width: 0;
+    transform: none;
+    justify-items: stretch;
+  }
+
+  .showdown-seats .player-award-badge {
+    display: grid;
+    grid-template-columns: auto auto;
+    width: 100%;
+    max-width: none;
+    gap: 3px;
+    padding: 2px 5px;
+    overflow: hidden;
+    font-size: 9px;
+    line-height: 1.2;
+    white-space: normal;
+    text-overflow: ellipsis;
+  }
+
+  .showdown-seats .player-award-badge strong,
+  .showdown-seats .player-award-badge b {
+    min-width: max-content;
+  }
+
+  .showdown-seats .player-award-badge b {
+    justify-self: end;
+  }
+
+  .showdown-seats .player-award-hand {
+    grid-column: 1 / -1;
+    white-space: nowrap;
   }
 
   .made-panel {

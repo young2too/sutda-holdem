@@ -56,7 +56,6 @@ function render() {
   document.querySelector("#currentBet").textContent = snapshot.currentBet;
   document.querySelector("#streetLabel").textContent = snapshot.streetName;
   document.querySelector("#communityCards").innerHTML = snapshot.community.map(renderCard).join("");
-  renderSettlement();
   const playersEl = document.querySelector("#players");
   playersEl.className = `players table-seats count-${snapshot.playerCount} ${snapshot.showdown ? "showdown-seats" : ""}`;
   playersEl.innerHTML = snapshot.players.map(renderPlayer).join("");
@@ -121,7 +120,7 @@ function renderActionTimer() {
     if (seconds) seconds.textContent = "0.00s";
     return;
   }
-  const total = Math.max(1, snapshot.actionTimeoutMs || 10000);
+  const total = Math.max(1, snapshot.actionTimeoutMs || 20000);
   const key = `${snapshot.handNumber}:${snapshot.currentPlayer}:${snapshot.actionDeadline}`;
   if (key !== actionTimerKey || Math.abs((snapshot.actionRemainingMs || 0) - getLocalActionRemaining()) > 350) {
     actionTimerKey = key;
@@ -138,29 +137,6 @@ function renderActionTimer() {
 function getLocalActionRemaining() {
   if (!actionTimerSyncedAt) return Math.max(0, snapshot ? snapshot.actionRemainingMs || 0 : 0);
   return Math.max(0, actionTimerRemainingAtSync - (performance.now() - actionTimerSyncedAt));
-}
-
-function renderSettlement() {
-  const boardPanel = document.querySelector("#boardPanel");
-  const settlementPanel = document.querySelector("#settlementPanel");
-  if (!snapshot.showdown || !snapshot.result) {
-    boardPanel.hidden = false;
-    settlementPanel.hidden = true;
-    settlementPanel.innerHTML = "";
-    return;
-  }
-  boardPanel.hidden = false;
-  settlementPanel.hidden = false;
-  const awards = snapshot.result.awards || [];
-  settlementPanel.innerHTML = `
-    <div class="settlement-title">
-      <span>쇼다운 종료</span>
-      <strong>정산</strong>
-    </div>
-    <div class="settlement-awards">
-      ${awards.map(renderAward).join("") || `<p>정산 내역 없음</p>`}
-    </div>
-  `;
 }
 
 function renderChat() {
@@ -190,19 +166,6 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#39;"
   }[char]));
-}
-
-function renderAward(award) {
-  const winners = award.winners.map((winner) => `${winner.name} ${winner.position}`).join(", ");
-  const hands = award.winners.map((winner) => winner.hand ? `${winner.name}: ${winner.hand}` : "").filter(Boolean).join(" / ");
-  return `
-    <article class="award-row">
-      <span class="award-label">${award.label}</span>
-      <strong>${winners}</strong>
-      <span>팟 ${award.amount} · ${award.share}씩 획득${award.dealerFee ? ` · 딜러비 ${award.dealerFee}` : ""}</span>
-      ${hands ? `<span class="award-hand">${hands}</span>` : ""}
-    </article>
-  `;
 }
 
 function renderActionControls() {
@@ -237,6 +200,7 @@ function renderShowdownControls() {
   const panel = document.querySelector("#showdownControls");
   const modeSelect = document.querySelector("#showdownMode");
   const sutdaSelect = document.querySelector("#showdownSutdaCard");
+  const sutdaBoardSelect = document.querySelector("#showdownSutdaBoardCard");
   const readyButton = document.querySelector("#showdownReadyButton");
   const player = snapshot.seatId === null ? null : snapshot.players[snapshot.seatId];
   const visible = Boolean(player && snapshot.readyPhase && !snapshot.showdown && !player.folded);
@@ -248,6 +212,8 @@ function renderShowdownControls() {
   });
   sutdaSelect.innerHTML = sutdaOptions(player);
   sutdaSelect.disabled = !player.canSutda;
+  sutdaBoardSelect.innerHTML = sutdaBoardOptions(player);
+  sutdaBoardSelect.disabled = !player.canSutda;
   readyButton.disabled = !snapshot.controls.canReady;
   readyButton.textContent = player.ready ? "준비 완료" : "쇼다운 준비";
 }
@@ -273,8 +239,11 @@ function renderPlayer(player) {
   const actionText = isActive ? "액션 중" : (player.lastAction || (player.ai ? "AI 대기" : "대기"));
   const kickButton = player.canKick ? `<button class="kick-button" type="button" data-kick-seat="${player.id}" title="강퇴">강퇴</button>` : "";
   const declaration = snapshot.showdown && !player.folded && player.mode !== "hidden" ? `<span class="declaration-badge">${modeLabel(player.mode)}</span>` : "";
+  const awardBadges = renderPlayerAwards(player);
+  const winnerClass = awardBadges ? "winner-seat" : "";
   return `
-    <article class="player seat ${isActive ? "active-player" : ""} ${player.folded ? "folded-player" : ""} ${owned ? "my-seat" : "opponent-seat"}" style="--seat-x:${seat[0]}%; --seat-y:${seat[1]}%;">
+    <article class="player seat ${isActive ? "active-player" : ""} ${player.folded ? "folded-player" : ""} ${winnerClass} ${owned ? "my-seat" : "opponent-seat"}" style="--seat-x:${seat[0]}%; --seat-y:${seat[1]}%;">
+      ${awardBadges}
       <div class="player-head">
         <div>
           <h2>${player.name} <span class="position">${player.position}</span>${declaration}</h2>
@@ -296,6 +265,31 @@ function renderPlayer(player) {
         <span class="bet-chip">베팅 ${player.streetBet}</span>
       </div>
     </article>
+  `;
+}
+
+function renderPlayerAwards(player) {
+  if (!snapshot.showdown || !snapshot.result || player.folded) return "";
+  const awards = (snapshot.result.awards || []).flatMap((award) => {
+    const winner = award.winners.find((item) => item.id === player.id);
+    if (!winner) return [];
+    return [{
+      label: award.label,
+      amount: award.share,
+      hand: winner.hand || ""
+    }];
+  });
+  if (!awards.length) return "";
+  return `
+    <div class="player-awards">
+      ${awards.map((award) => `
+        <span class="player-award-badge">
+          <strong>${escapeHtml(award.label)}</strong>
+          <span class="player-award-hand">${escapeHtml(award.hand)}</span>
+          <b>${award.amount}</b>
+        </span>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -451,6 +445,13 @@ function sutdaOptions(player) {
   )).join("");
 }
 
+function sutdaBoardOptions(player) {
+  if (!player.mine) return `<option>비공개</option>`;
+  return player.sutdaBoardOptions.map((option) => (
+    `<option value="${option.id}" ${option.disabled ? "disabled" : ""} ${player.sutdaBoardCard === option.id ? "selected" : ""}>${option.label}</option>`
+  )).join("");
+}
+
 async function fetchState() {
   try {
     const response = await fetch(`/api/state?clientId=${encodeURIComponent(clientId)}`);
@@ -593,6 +594,7 @@ document.querySelector("#betRaiseButton").addEventListener("click", () => postAc
 document.querySelector("#foldButton").addEventListener("click", () => postAction({ type: "fold" }));
 document.querySelector("#showdownMode").addEventListener("change", (event) => postAction({ type: "setMode", mode: event.target.value }));
 document.querySelector("#showdownSutdaCard").addEventListener("change", (event) => postAction({ type: "setSutdaCard", sutdaCard: event.target.value }));
+document.querySelector("#showdownSutdaBoardCard").addEventListener("change", (event) => postAction({ type: "setSutdaBoardCard", sutdaBoardCard: event.target.value }));
 document.querySelector("#showdownReadyButton").addEventListener("click", () => postAction({ type: "ready" }));
 document.querySelector("#raiseAmount").addEventListener("input", (event) => {
   document.querySelector("#raiseAmountLabel").textContent = event.target.value;

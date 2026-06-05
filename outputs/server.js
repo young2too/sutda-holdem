@@ -26,7 +26,7 @@ let hostClientId = null;
 let aiTimer = null;
 let actionTimer = null;
 let chatMessages = [];
-const ACTION_TIMEOUT_MS = 10000;
+const ACTION_TIMEOUT_MS = 20000;
 const DISCONNECT_GRACE_MS = 15000;
 let state = createHand(6, []);
 
@@ -57,7 +57,8 @@ function createHand(playerCount, previousPlayers) {
       lastAction: "",
       cards,
       mode: "holdem",
-      sutdaCard: firstSutdaCard ? firstSutdaCard.id : (cards[0] ? cards[0].id : null)
+      sutdaCard: firstSutdaCard ? firstSutdaCard.id : (cards[0] ? cards[0].id : null),
+      sutdaBoardCard: null
     };
   });
   const log = [`${playerCount}인 테이블 새 핸드.`];
@@ -149,6 +150,7 @@ function normalizeDeclaration(player) {
   if (canDeclareSutda(player)) return;
   player.mode = "holdem";
   player.sutdaCard = player.cards[0] ? player.cards[0].id : null;
+  player.sutdaBoardCard = null;
 }
 
 function visibleCommunity() {
@@ -287,11 +289,13 @@ function publicPlayer(player, clientId) {
     lastAction: player.lastAction,
     mode: showCards ? player.mode : "hidden",
     sutdaCard: showCards ? player.sutdaCard : null,
+    sutdaBoardCard: showCards ? player.sutdaBoardCard : null,
     canSutda: mine && occupied ? canDeclareSutda(player) : false,
     cards: showCards ? player.cards : (occupied ? [null, null] : []),
     holdemOutput: showCards ? currentHoldemOutput(player) : "",
     sutdaOutput: showCards ? currentSutdaOutput(player) : "",
-    sutdaOptions: mine && occupied ? player.cards.map((card) => ({ id: card.id, label: `${card.rank}${card.suit} ${sutdaCardLabel(card)}`, disabled: !isSutdaUsable(card) })) : []
+    sutdaOptions: mine && occupied ? player.cards.map((card) => ({ id: card.id, label: `${card.rank}${card.suit} ${sutdaCardLabel(card)}`, disabled: !isSutdaUsable(card) })) : [],
+    sutdaBoardOptions: mine && occupied ? state.community.map((card) => ({ id: card.id, label: `${card.rank}${card.suit} ${sutdaCardLabel(card)}`, disabled: !isSutdaUsable(card) })) : []
   };
 }
 
@@ -337,6 +341,12 @@ function handleAction(body) {
   if (body.type === "setSutdaCard") {
     const card = player.cards.find((item) => item.id === body.sutdaCard);
     if (card && isSutdaUsable(card)) player.sutdaCard = card.id;
+    scheduleAiStep();
+    return;
+  }
+  if (body.type === "setSutdaBoardCard") {
+    const card = state.community.find((item) => item.id === body.sutdaBoardCard);
+    if (card && isSutdaUsable(card)) player.sutdaBoardCard = card.id;
     scheduleAiStep();
     return;
   }
@@ -446,6 +456,7 @@ function chooseAiDeclaration(player) {
   player.mode = roll > 0.9 ? "swing" : roll > 0.62 ? "sutda" : "holdem";
   const usable = player.cards.find(isSutdaUsable);
   if (usable) player.sutdaCard = usable.id;
+  chooseDefaultSutdaDeclaration(player);
 }
 
 function checkCall(player) {
@@ -494,7 +505,7 @@ function fold(player) {
     winner.stack += state.pot;
     state.log.push(`${winner.name} ${winner.position} 전체 팟 ${state.pot} 획득.`);
     state.result = {
-      awards: [{ label: "전체", amount: state.pot, share: state.pot, winners: [{ id: winner.id, name: winner.name, position: winner.position }] }],
+      awards: [{ label: "전체", amount: state.pot, share: state.pot, winners: [{ id: winner.id, name: winner.name, position: winner.position, hand: awardHandSummary(winner, "전체") }] }],
       summaries: [`${winner.name} ${winner.position} 전체 팟 ${state.pot} 획득`]
     };
     pushEvent({ type: "award", awards: state.result.awards });
@@ -513,7 +524,7 @@ function awardRemainingAfterRemoval() {
   winner.stack += state.pot;
   state.log.push(`${winner.name} ${winner.position} 전체 팟 ${state.pot} 획득.`);
   state.result = {
-    awards: [{ label: "전체", amount: state.pot, share: state.pot, winners: [{ id: winner.id, name: winner.name, position: winner.position }] }],
+    awards: [{ label: "전체", amount: state.pot, share: state.pot, winners: [{ id: winner.id, name: winner.name, position: winner.position, hand: awardHandSummary(winner, "전체") }] }],
     summaries: [`${winner.name} ${winner.position} 전체 팟 ${state.pot} 획득`]
   };
   pushEvent({ type: "award", awards: state.result.awards });
@@ -561,8 +572,23 @@ function enterReadyPhase() {
     player.streetBet = 0;
     player.ready = !isOccupied(player) || player.folded;
     if (isOccupied(player) && !player.folded) player.lastAction = "";
+    if (isOccupied(player) && !player.folded) chooseDefaultSutdaDeclaration(player);
   });
   state.log.push("리버 베팅 종료. 생존 플레이어의 쇼다운 준비를 기다립니다.");
+}
+
+function chooseDefaultSutdaDeclaration(player) {
+  const handCards = player.cards.filter(isSutdaUsable);
+  const boardCards = state.community.filter(isSutdaUsable);
+  if (!handCards.length || !boardCards.length) {
+    player.sutdaBoardCard = null;
+    return;
+  }
+  const best = handCards.flatMap((handCard) => (
+    boardCards.map((boardCard) => ({ handCard, boardCard, hand: evaluateSutdaPair(handCard, boardCard) }))
+  )).sort((a, b) => -compareSutdaValues(a.hand, b.hand))[0];
+  player.sutdaCard = best.handCard.id;
+  player.sutdaBoardCard = best.boardCard.id;
 }
 
 function markReady(player) {
@@ -662,15 +688,22 @@ function awardPlayers(winners, amount, label, logs) {
 }
 
 function awardHandSummary(player, label) {
-  if (label.includes("홀덤")) return evaluateHoldem([...player.cards, ...state.community]).name;
+  if (label.includes("홀덤")) return holdemSummary(player);
   if (label.includes("섯다")) return evaluateSutdaPlayer(player).name;
   if (label.includes("스윙") && !label.includes("실패")) {
-    return `홀덤 ${evaluateHoldem([...player.cards, ...state.community]).name} / 섯다 ${evaluateSutdaPlayer(player).name}`;
+    return `홀덤 ${holdemSummary(player)} / 섯다 ${evaluateSutdaPlayer(player).name}`;
   }
-  if (player.mode === "holdem") return evaluateHoldem([...player.cards, ...state.community]).name;
+  if (player.mode === "holdem") return holdemSummary(player);
   if (player.mode === "sutda") return evaluateSutdaPlayer(player).name;
-  if (player.mode === "swing") return `홀덤 ${evaluateHoldem([...player.cards, ...state.community]).name} / 섯다 ${evaluateSutdaPlayer(player).name}`;
-  return "";
+  if (player.mode === "swing") return `홀덤 ${holdemSummary(player)} / 섯다 ${evaluateSutdaPlayer(player).name}`;
+  return holdemSummary(player);
+}
+
+function holdemSummary(player) {
+  const cards = [...player.cards, ...state.community];
+  if (cards.length >= 5) return evaluateHoldem(cards).name;
+  const high = cards.map((card) => card.value).sort((a, b) => b - a)[0] || 0;
+  return high ? `${rankLabel(high)}하이` : "";
 }
 
 function resolveSutdaRetry(results, currentWinners, logs) {
@@ -705,9 +738,11 @@ function shouldRetrySutda(results) {
 
 function evaluateSutdaPlayer(player) {
   if (player.mode === "holdem") return { score: -1, kickers: [], name: "섯다 미선언" };
-  const card = player.cards.find((item) => item.id === player.sutdaCard);
-  if (!card || !isSutdaUsable(card)) return { score: -1, kickers: [], name: "섯다 불성립" };
-  return evaluateSutdaFromCard(card);
+  const handCard = player.cards.find((item) => item.id === player.sutdaCard);
+  if (!handCard || !isSutdaUsable(handCard)) return { score: -1, kickers: [], name: "섯다 불성립" };
+  const boardCard = state.community.find((item) => item.id === player.sutdaBoardCard);
+  if (boardCard && isSutdaUsable(boardCard)) return evaluateSutdaPair(handCard, boardCard);
+  return evaluateSutdaFromCard(handCard);
 }
 
 function evaluateSutdaFromCard(handCard) {
