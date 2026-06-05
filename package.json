@@ -1,0 +1,15 @@
+{
+  "name": "hwaturump-sutda-holdem",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multiplayer Hwaturump Sutda Holdem web game",
+  "main": "outputs/server.js",
+  "scripts": {
+    "start": "node outputs/server.js",
+    "check": "node --check outputs/server.js",
+    "test": "node work/test-sutda.js && node work/test-retry-showdown.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

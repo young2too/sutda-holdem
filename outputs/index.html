@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>화투럼프 섯다 홀덤</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app">
+    <section class="table-area" aria-label="게임 테이블">
+      <header class="topbar">
+        <div>
+          <h1>화투럼프 섯다 홀덤</h1>
+          <p>6~9인 포지션, 자동 쇼다운 준비, 홀덤 팟과 섯다 팟 동시 정산</p>
+        </div>
+        <div class="table-controls">
+          <label>
+            인원
+            <select id="playerCount">
+              <option value="6" selected>6인</option>
+              <option value="7">7인</option>
+              <option value="8">8인</option>
+              <option value="9">9인</option>
+            </select>
+          </label>
+          <label class="nickname-field">
+            닉네임
+            <input id="nicknameInput" type="text" maxlength="5" autocomplete="nickname" placeholder="5글자">
+          </label>
+          <button id="joinButton" type="button">착석</button>
+          <button id="fillAiButton" type="button" hidden>AI 채우기</button>
+          <button id="helpButton" type="button">족보 도움말</button>
+          <button id="newHandButton" class="primary-button" type="button">새 핸드</button>
+        </div>
+      </header>
+      <div id="connectionStatus" class="connection-status">서버 연결 대기</div>
+
+      <div class="score-strip">
+        <div>
+          <span>전체 팟</span>
+          <strong id="totalPot">0</strong>
+        </div>
+        <div>
+          <span>홀덤 팟</span>
+          <strong id="holdemPot">0</strong>
+        </div>
+        <div>
+          <span>섯다 팟</span>
+          <strong id="sutdaPot">0</strong>
+        </div>
+        <div>
+          <span>현재 베팅</span>
+          <strong id="currentBet">0</strong>
+        </div>
+      </div>
+
+      <section class="table-stage" aria-label="포커 테이블">
+        <div class="poker-table">
+          <div class="table-center">
+            <div id="boardPanel" class="board-panel">
+              <div class="section-title">
+                <h2>커뮤니티</h2>
+                <span id="streetLabel">프리플랍</span>
+              </div>
+              <div id="communityCards" class="cards board-cards"></div>
+              <div class="center-pot">
+                <span>팟</span>
+                <strong id="centerPot">0</strong>
+              </div>
+            </div>
+            <div id="settlementPanel" class="settlement-panel" hidden></div>
+          </div>
+        </div>
+        <section id="players" class="players table-seats" aria-label="플레이어 좌석"></section>
+        <div id="chipLayer" class="chip-layer" aria-hidden="true"></div>
+      </section>
+
+      <footer class="actions" aria-label="베팅 액션">
+        <span id="readyNotice" class="ready-notice" hidden>리버 베팅 종료. 남은 플레이어가 각자 쇼다운 준비 완료를 눌러야 정산됩니다.</span>
+        <div class="action-info">
+          <strong id="turnLabel">액션 대기</strong>
+          <span id="callLabel">콜 0</span>
+        </div>
+        <button id="checkCallButton" type="button">체크/콜</button>
+        <div class="raise-control">
+          <label for="raiseAmount">레이즈</label>
+          <input id="raiseAmount" type="range" min="10" max="1000" step="5" value="20">
+          <output id="raiseAmountLabel" for="raiseAmount">20</output>
+        </div>
+        <button id="betRaiseButton" type="button">베팅/레이즈</button>
+        <button id="foldButton" type="button">폴드</button>
+        <div id="ropeTimer" class="rope-timer" aria-label="액션 제한 시간" hidden>
+          <div class="rope-track">
+            <span class="rope-burn"></span>
+            <span class="rope-flame"></span>
+          </div>
+          <strong id="ropeSeconds" class="rope-seconds">0.00s</strong>
+        </div>
+        <div id="showdownControls" class="showdown-controls" hidden>
+          <label>
+            선언
+            <select id="showdownMode">
+              <option value="holdem">홀덤</option>
+              <option value="sutda">섯다</option>
+              <option value="swing">스윙</option>
+            </select>
+          </label>
+          <label>
+            섯다 카드
+            <select id="showdownSutdaCard"></select>
+          </label>
+          <button id="showdownReadyButton" type="button">쇼다운 준비</button>
+        </div>
+      </footer>
+    </section>
+
+    <aside class="side-panel">
+      <section>
+        <h2>진행</h2>
+        <ol id="log" class="log"></ol>
+      </section>
+      <section>
+        <h2>룰 메모</h2>
+        <ul class="rule-list">
+          <li>2장 핸드와 커뮤니티 5장으로 홀덤을 판정합니다.</li>
+          <li>섯다는 ♥/♠의 1~10월만 사용하며, ♥는 띠, ♠는 광/동물 카드입니다.</li>
+          <li>선언자가 선택한 핸드 1장과 커뮤니티 1장 중 최선 조합으로 섯다를 판정합니다.</li>
+          <li>커뮤니티에 섯다 카드가 없으면 섯다 팟은 열리지 않고 홀덤으로 전체 팟을 정산합니다.</li>
+          <li>리버 베팅이 끝나면 생존 플레이어별 쇼다운 준비 완료 후 자동 정산합니다.</li>
+          <li>스윙은 홀덤과 섯다를 모두 이겨야 전체 팟을 가져갑니다.</li>
+          <li>사구/멍사구가 나오면 섯다 팟만 자동 재경기 처리합니다.</li>
+        </ul>
+      </section>
+    </aside>
+  </main>
+
+  <dialog id="helpDialog" class="help-dialog">
+    <div class="help-head">
+      <h2>족보 도움말</h2>
+      <button id="closeHelpButton" type="button" aria-label="닫기">닫기</button>
+    </div>
+    <div class="help-content">
+      <section>
+        <h3>홀덤 족보</h3>
+        <div class="help-grid">
+          <article class="hand-help">
+            <div class="mini-cards">
+              <img src="./assets/cards/9_heart.png" alt="">
+              <img src="./assets/cards/8_heart.png" alt="">
+              <img src="./assets/cards/7_heart.png" alt="">
+              <img src="./assets/cards/6_heart.png" alt="">
+              <img src="./assets/cards/5_heart.png" alt="">
+            </div>
+            <strong>스트레이트 플러시</strong>
+            <span>같은 무늬 5장이 연속</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards">
+              <img src="./assets/cards/9_spade.png" alt="">
+              <img src="./assets/cards/9_heart.png" alt="">
+              <img src="./assets/cards/9_diamond.png" alt="">
+              <img src="./assets/cards/9_club.png" alt="">
+              <img src="./assets/cards/5_heart.png" alt="">
+            </div>
+            <strong>포카드</strong>
+            <span>같은 숫자 4장</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards">
+              <img src="./assets/cards/9_spade.png" alt="">
+              <img src="./assets/cards/9_heart.png" alt="">
+              <img src="./assets/cards/9_diamond.png" alt="">
+              <img src="./assets/cards/5_club.png" alt="">
+              <img src="./assets/cards/5_heart.png" alt="">
+            </div>
+            <strong>풀하우스</strong>
+            <span>트리플 + 원페어</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards">
+              <img src="./assets/cards/A_spade.png" alt="">
+              <img src="./assets/cards/K_spade.png" alt="">
+              <img src="./assets/cards/9_spade.png" alt="">
+              <img src="./assets/cards/6_spade.png" alt="">
+              <img src="./assets/cards/3_spade.png" alt="">
+            </div>
+            <strong>플러시</strong>
+            <span>같은 무늬 5장</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards">
+              <img src="./assets/cards/A_spade.png" alt="">
+              <img src="./assets/cards/K_heart.png" alt="">
+              <img src="./assets/cards/Q_diamond.png" alt="">
+              <img src="./assets/cards/J_club.png" alt="">
+              <img src="./assets/cards/10_spade.png" alt="">
+            </div>
+            <strong>스트레이트</strong>
+            <span>무늬 상관없이 5장이 연속</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards">
+              <img src="./assets/cards/9_spade.png" alt="">
+              <img src="./assets/cards/9_heart.png" alt="">
+              <img src="./assets/cards/9_diamond.png" alt="">
+              <img src="./assets/cards/K_club.png" alt="">
+              <img src="./assets/cards/5_heart.png" alt="">
+            </div>
+            <strong>트리플</strong>
+            <span>같은 숫자 3장</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards">
+              <img src="./assets/cards/9_spade.png" alt="">
+              <img src="./assets/cards/9_heart.png" alt="">
+              <img src="./assets/cards/5_diamond.png" alt="">
+              <img src="./assets/cards/5_club.png" alt="">
+              <img src="./assets/cards/K_heart.png" alt="">
+            </div>
+            <strong>투페어</strong>
+            <span>서로 다른 페어 2개</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards">
+              <img src="./assets/cards/9_spade.png" alt="">
+              <img src="./assets/cards/9_heart.png" alt="">
+              <img src="./assets/cards/A_diamond.png" alt="">
+              <img src="./assets/cards/5_club.png" alt="">
+              <img src="./assets/cards/K_heart.png" alt="">
+            </div>
+            <strong>원페어 / 하이카드</strong>
+            <span>페어 1개, 없으면 가장 높은 카드</span>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h3>섯다 족보</h3>
+        <div class="help-grid sutda-help-grid">
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/3_spade.png" alt="">
+              <img src="./assets/cards/8_spade.png" alt="">
+            </div>
+            <strong>38광땡</strong>
+            <span>3월 광 + 8월 광</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/A_spade.png" alt="">
+              <img src="./assets/cards/8_spade.png" alt="">
+            </div>
+            <strong>18광땡</strong>
+            <span>1월 광 + 8월 광</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/A_spade.png" alt="">
+              <img src="./assets/cards/3_spade.png" alt="">
+            </div>
+            <strong>13광땡</strong>
+            <span>1월 광 + 3월 광</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/9_heart.png" alt="">
+              <img src="./assets/cards/9_spade.png" alt="">
+            </div>
+            <strong>땡</strong>
+            <span>같은 월 2장, 숫자가 클수록 강함</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/A_heart.png" alt="">
+              <img src="./assets/cards/2_spade.png" alt="">
+            </div>
+            <strong>알리</strong>
+            <span>1월 + 2월</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/A_heart.png" alt="">
+              <img src="./assets/cards/4_spade.png" alt="">
+            </div>
+            <strong>독사</strong>
+            <span>1월 + 4월</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/A_heart.png" alt="">
+              <img src="./assets/cards/9_spade.png" alt="">
+            </div>
+            <strong>구삥 / 장삥</strong>
+            <span>1+9는 구삥, 1+10은 장삥</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/4_heart.png" alt="">
+              <img src="./assets/cards/10_spade.png" alt="">
+            </div>
+            <strong>장사 / 세륙</strong>
+            <span>4+10은 장사, 4+6은 세륙</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/4_heart.png" alt="">
+              <img src="./assets/cards/9_spade.png" alt="">
+            </div>
+            <strong>사구 / 멍사구</strong>
+            <span>재경기 조건. 섯다 팟만 다시 판정</span>
+          </article>
+          <article class="hand-help">
+            <div class="mini-cards two">
+              <img src="./assets/cards/7_heart.png" alt="">
+              <img src="./assets/cards/8_spade.png" alt="">
+            </div>
+            <strong>끗</strong>
+            <span>두 월 합의 1의 자리. 9끗이 가장 높음</span>
+          </article>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <script src="./game.js"></script>
+</body>
+</html>
