@@ -1174,3 +1174,260 @@ select {
     width: min(238px, 44vw);
   }
 }
+
+@media (max-width: 760px) {
+  body {
+    height: auto;
+    min-height: 100dvh;
+    overflow: auto;
+    background-attachment: fixed;
+  }
+
+  .app {
+    display: block;
+    height: auto;
+    min-height: 100dvh;
+    padding: 8px 8px 132px;
+    overflow: visible;
+  }
+
+  .table-area {
+    grid-template-rows: auto auto auto minmax(560px, 1fr) auto;
+    gap: 8px;
+    min-height: 100dvh;
+    padding: 9px;
+  }
+
+  .topbar {
+    gap: 8px;
+  }
+
+  h1 {
+    font-size: 18px;
+  }
+
+  .topbar p {
+    font-size: 12px;
+  }
+
+  .table-controls {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .table-controls label,
+  .table-controls button {
+    min-width: 0;
+  }
+
+  .nickname-field input {
+    width: 100%;
+  }
+
+  .connection-status {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .score-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .score-strip div {
+    padding: 7px 8px;
+  }
+
+  .score-strip strong {
+    font-size: 17px;
+  }
+
+  .table-stage {
+    min-height: 560px;
+  }
+
+  .poker-table {
+    top: 43%;
+    width: 96%;
+    height: 230px;
+    border-width: 9px;
+  }
+
+  .table-center {
+    width: calc(100vw - 34px);
+  }
+
+  .section-title {
+    gap: 8px;
+  }
+
+  .section-title h2 {
+    font-size: 13px;
+  }
+
+  .board-cards {
+    min-height: 98px;
+    gap: 5px;
+    padding-top: 4px;
+  }
+
+  .board-cards .card {
+    width: clamp(54px, 16.4vw, 66px);
+    height: clamp(78px, 23.8vw, 96px);
+    border-radius: 6px;
+  }
+
+  .center-pot {
+    margin-top: 8px;
+    padding: 5px 10px;
+  }
+
+  .player {
+    width: 132px;
+    padding: 6px;
+  }
+
+  .empty-seat {
+    min-height: 46px;
+  }
+
+  .seat h2,
+  .seat .player-head strong {
+    font-size: 11px;
+  }
+
+  .position {
+    min-height: 18px;
+    margin-left: 3px;
+    padding: 0 5px;
+    font-size: 10px;
+  }
+
+  .seat-main {
+    grid-template-columns: auto 1fr;
+    gap: 5px;
+    margin-top: 5px;
+  }
+
+  .seat .card,
+  .count-8 .seat .card,
+  .count-9 .seat .card {
+    width: 30px;
+    height: 43px;
+    border-radius: 4px;
+  }
+
+  .made-panel {
+    gap: 3px;
+  }
+
+  .made-panel span,
+  .count-8 .made-panel span,
+  .count-9 .made-panel span {
+    padding: 3px 4px;
+    font-size: 9px;
+  }
+
+  .made-panel strong {
+    font-size: 10px;
+  }
+
+  .action-badge,
+  .bet-chip,
+  .count-8 .action-badge,
+  .count-8 .bet-chip,
+  .count-9 .action-badge,
+  .count-9 .bet-chip {
+    min-height: 19px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
+
+  .actions {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    padding: 8px;
+    background: rgba(8, 24, 22, 0.96);
+    box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.32);
+  }
+
+  .actions button {
+    min-width: 0;
+    min-height: 42px;
+    padding: 0 8px;
+  }
+
+  .action-info,
+  .raise-control,
+  .rope-timer,
+  .ready-notice,
+  .showdown-controls {
+    grid-column: 1 / -1;
+  }
+
+  .action-info {
+    min-width: 0;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .raise-control {
+    grid-template-columns: auto minmax(0, 1fr) 44px;
+    padding: 0 8px;
+  }
+
+  .rope-timer {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) 62px;
+    padding: 0;
+  }
+
+  .showdown-controls {
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+
+  .showdown-controls button {
+    grid-column: 1 / -1;
+  }
+
+  .side-panel {
+    display: block;
+    margin-top: 8px;
+    min-height: 0;
+  }
+
+  .side-panel section {
+    padding: 10px;
+  }
+
+  .side-panel section:not(.comms-panel) {
+    display: none;
+  }
+
+  .comms-panel {
+    height: min(30dvh, 230px);
+  }
+
+  .chat-form {
+    grid-template-columns: minmax(0, 1fr) 64px;
+  }
+
+  .help-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .help-content {
+    max-height: calc(100dvh - 78px);
+    padding: 12px;
+  }
+}
