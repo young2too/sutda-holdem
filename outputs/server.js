@@ -585,28 +585,55 @@ function doShowdown() {
 
 function settlePots() {
   const contenders = activePlayers();
-  const holdem = contenders.map((player) => ({ player, hand: evaluateHoldem([...player.cards, ...state.community]) }));
-  const holdemWinners = bestEntries(holdem, "hand");
-  const logs = [`홀덤 최고: ${holdem.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.hand.name}`).join(" / ")}.`];
+  const holdem = contenders.filter(isHoldemPotParticipant).map((player) => ({ player, hand: evaluateHoldem([...player.cards, ...state.community]) }));
+  const holdemWinners = holdem.length ? bestEntries(holdem, "hand") : [];
+  const logs = [`홀덤 최고: ${holdem.length ? holdem.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.hand.name}`).join(" / ") : "참가자 없음"}.`];
   const awards = [];
   const summaries = [];
   if (!hasSutdaCommunityCard()) {
+    const forcedHoldem = contenders.map((player) => ({ player, hand: evaluateHoldem([...player.cards, ...state.community]) }));
+    const forcedHoldemWinners = bestEntries(forcedHoldem, "hand");
     logs.push("커뮤니티에 섯다 카드가 없어 섯다 팟은 열리지 않습니다.");
-    awards.push(awardPlayers(holdemWinners.map((entry) => entry.player), state.pot, "홀덤", logs));
+    awards.push(awardPlayers(forcedHoldemWinners.map((entry) => entry.player), state.pot, "홀덤", logs));
     return { logs, awards: awards.filter(Boolean), summaries };
   }
   const sutda = contenders.filter(isSutdaPotParticipant).map((player) => ({ player, hand: evaluateSutdaPlayer(player) }));
   logs.push(`섯다 최고: ${sutda.length ? sutda.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.hand.name}`).join(" / ") : "참가자 없음"}.`);
   const sutdaWinners = sutda.length ? resolveSutdaRetry(sutda, bestEntries(sutda, "hand", compareSutdaValues), logs) : [];
-  const pots = getPotLayout();
-  const swingWinners = contenders.filter((player) => player.mode === "swing" && holdemWinners.some((entry) => entry.player.id === player.id) && sutdaWinners.some((entry) => entry.player.id === player.id));
+  const swingWinners = contenders.filter((player) => player.mode === "swing" && isSoleWinner(holdemWinners, player) && isSoleWinner(sutdaWinners, player));
   if (swingWinners.length) {
     awards.push(awardPlayers(swingWinners, state.pot, "스윙", logs));
     return { logs, awards: awards.filter(Boolean), summaries };
   }
-  awards.push(awardPlayers(holdemWinners.map((entry) => entry.player), pots.holdem, "홀덤", logs));
-  awards.push(awardPlayers(sutdaWinners.map((entry) => entry.player), pots.sutda, "섯다", logs));
+  const failedSwingIds = new Set(contenders.filter((player) => player.mode === "swing").map((player) => player.id));
+  const holdemAwardPool = holdem.filter((entry) => !failedSwingIds.has(entry.player.id));
+  const sutdaAwardPool = sutda.filter((entry) => !failedSwingIds.has(entry.player.id));
+  const holdemAwardWinners = holdemAwardPool.length ? bestEntries(holdemAwardPool, "hand") : [];
+  const sutdaAwardWinners = sutdaAwardPool.length ? bestEntries(sutdaAwardPool, "hand", compareSutdaValues) : [];
+  if (failedSwingIds.size) logs.push("스윙 실패자는 양쪽 팟 수상 자격에서 제외합니다.");
+  if (!sutdaAwardPool.length && holdemAwardPool.length) {
+    logs.push("섯다 팟에 유효한 수상자가 없어 홀덤 팟에 합칩니다.");
+    awards.push(awardPlayers(holdemAwardWinners.map((entry) => entry.player), state.pot, "홀덤", logs));
+    return { logs, awards: awards.filter(Boolean), summaries };
+  }
+  if (!holdemAwardPool.length && sutdaAwardPool.length) {
+    logs.push("홀덤 팟에 유효한 수상자가 없어 섯다 팟에 합칩니다.");
+    awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), state.pot, "섯다", logs));
+    return { logs, awards: awards.filter(Boolean), summaries };
+  }
+  if (!holdemAwardPool.length && !sutdaAwardPool.length) {
+    logs.push("스윙 플레이어만 남아 전체 팟을 스플릿합니다.");
+    awards.push(awardPlayers(contenders, state.pot, "스윙 실패 스플릿", logs));
+    return { logs, awards: awards.filter(Boolean), summaries };
+  }
+  const pots = getPotLayout();
+  awards.push(awardPlayers(holdemAwardWinners.map((entry) => entry.player), pots.holdem, "홀덤", logs));
+  awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), pots.sutda, "섯다", logs));
   return { logs, awards: awards.filter(Boolean), summaries };
+}
+
+function isSoleWinner(winners, player) {
+  return winners.length === 1 && winners[0].player.id === player.id;
 }
 
 function bestEntries(entries, key, comparator = compareValues) {
@@ -646,6 +673,10 @@ function resolveSutdaRetry(results, currentWinners, logs) {
 
 function isSutdaPotParticipant(player) {
   return player.mode === "sutda" || player.mode === "swing";
+}
+
+function isHoldemPotParticipant(player) {
+  return player.mode === "holdem" || player.mode === "swing";
 }
 
 function shouldRetrySutda(results) {
