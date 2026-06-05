@@ -192,9 +192,17 @@ button:disabled {
 }
 
 .board-cards {
-  min-height: 82px;
+  min-height: 178px;
   justify-content: center;
-  padding-top: 14px;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.board-cards .card {
+  width: 118px;
+  height: 170px;
+  border-radius: 10px;
 }
 
 .hand-cards {
@@ -303,8 +311,8 @@ button:disabled {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(74%, 780px);
-  height: min(48%, 310px);
+  width: min(72%, 860px);
+  height: min(54%, 420px);
   transform: translate(-50%, -50%);
   border: 14px solid rgba(42, 30, 18, 0.78);
   border-radius: 50%;
@@ -319,8 +327,8 @@ button:disabled {
 .table-center {
   position: absolute;
   left: 50%;
-  top: 44%;
-  width: min(90%, 520px);
+  top: 50%;
+  width: min(94%, 660px);
   transform: translate(-50%, -50%);
   text-align: center;
   z-index: 5;
@@ -1007,6 +1015,7 @@ select {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 18px;
+  overflow: hidden;
   min-height: 0;
 }
 
@@ -1018,17 +1027,104 @@ select {
   background: var(--panel);
 }
 
+.comms-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+.panel-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.tab-button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.tab-button.active {
+  border-color: rgba(223, 186, 99, 0.72);
+  background: rgba(223, 186, 99, 0.18);
+  color: var(--gold);
+  font-weight: 800;
+}
+
+.tab-panel {
+  display: none;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tab-panel.active {
+  display: grid;
+}
+
+#chatPanel.active {
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+#logPanel.active {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.chat-list {
+  display: flex;
+  flex-direction: column-reverse;
+  list-style: none;
+  gap: 8px;
+  overflow: auto;
+  min-height: 0;
+  margin: 0;
+  padding-left: 0;
+}
+
+.chat-list li {
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.chat-list strong {
+  color: var(--chat-name-color, var(--gold));
+  font-weight: 900;
+}
+
+.chat-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.chat-form input {
+  min-height: 36px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--ink);
+}
+
 .log {
   display: flex;
   flex-direction: column-reverse;
   gap: 8px;
   overflow: auto;
-  max-height: calc(100vh - 190px);
-  margin: 12px 0 0;
+  min-height: 0;
+  margin: 0;
   padding-left: 22px;
 }
 
 .log li,
+.chat-list li,
 .rule-list li {
   line-height: 1.45;
 }

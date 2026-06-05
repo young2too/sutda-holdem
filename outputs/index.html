@@ -117,9 +117,21 @@
     </section>
 
     <aside class="side-panel">
-      <section>
-        <h2>진행</h2>
-        <ol id="log" class="log"></ol>
+      <section class="comms-panel">
+        <div class="panel-tabs" role="tablist" aria-label="대화와 로그">
+          <button id="chatTab" class="tab-button active" type="button" data-panel-tab="chat">채팅</button>
+          <button id="logTab" class="tab-button" type="button" data-panel-tab="log">로그</button>
+        </div>
+        <div id="chatPanel" class="tab-panel active">
+          <ul id="chatMessages" class="chat-list"></ul>
+          <form id="chatForm" class="chat-form">
+            <input id="chatInput" type="text" maxlength="80" autocomplete="off" placeholder="채팅 입력">
+            <button id="chatSendButton" type="submit">전송</button>
+          </form>
+        </div>
+        <div id="logPanel" class="tab-panel">
+          <ol id="log" class="log"></ol>
+        </div>
       </section>
       <section>
         <h2>룰 메모</h2>

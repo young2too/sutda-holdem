@@ -25,6 +25,7 @@ let handNumber = 0;
 let hostClientId = null;
 let aiTimer = null;
 let actionTimer = null;
+let chatMessages = [];
 const ACTION_TIMEOUT_MS = 10000;
 const DISCONNECT_GRACE_MS = 15000;
 let state = createHand(6, []);
@@ -231,6 +232,7 @@ function safeState(clientId, seatId) {
     seatId: ownsSeat ? seatIdForClient : null,
     isHost: Boolean(clientId && clientId === hostClientId),
     log: state.log.slice(-80),
+    chat: chatMessages.slice(-120),
     players: state.players.map((player) => publicPlayer(player, clientId)),
     controls: {
       canAct: ownsSeat && isOccupied(seat) && state.currentPlayer === seatIdForClient && !state.readyPhase && !state.showdown && !seat.folded && activePlayers().length > 1,
@@ -949,6 +951,23 @@ function startNewHand(body) {
   scheduleAiStep();
 }
 
+function postChat(body) {
+  const text = Array.from(String(body.text || "").trim().replace(/\s+/g, " ")).slice(0, 80).join("");
+  if (!text) throw new Error("채팅 내용이 없습니다.");
+  const player = playerByClient(body.clientId);
+  if (player && !player.ai) player.lastSeen = Date.now();
+  const name = player && isOccupied(player) ? player.name : "관전";
+  const senderKey = player && player.clientId ? player.clientId : `viewer:${body.clientId || "anonymous"}`;
+  chatMessages.push({
+    id: Date.now() + Math.random(),
+    senderKey,
+    name,
+    text,
+    at: Date.now()
+  });
+  chatMessages = chatMessages.slice(-120);
+}
+
 async function readJson(req) {
   let raw = "";
   for await (const chunk of req) raw += chunk;
@@ -998,6 +1017,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/kick" && req.method === "POST") {
       kickSeat(await readJson(req));
+      return sendJson(res, { ok: true });
+    }
+    if (url.pathname === "/api/chat" && req.method === "POST") {
+      postChat(await readJson(req));
       return sendJson(res, { ok: true });
     }
     if (url.pathname === "/api/fill-ai" && req.method === "POST") {

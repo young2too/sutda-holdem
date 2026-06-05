@@ -1,9 +1,9 @@
 const SUIT_NAMES = { "♠": "spade", "♥": "heart", "♦": "diamond", "♣": "club" };
 const SEAT_POSITIONS = {
-  6: [[50, 78], [14, 74], [14, 26], [50, 18], [86, 26], [86, 74]],
-  7: [[50, 79], [22, 74], [12, 50], [30, 18], [70, 18], [88, 50], [78, 74]],
-  8: [[50, 79], [27, 75], [12, 54], [22, 20], [50, 16], [78, 20], [88, 54], [73, 75]],
-  9: [[50, 79], [30, 75], [12, 57], [16, 32], [37, 18], [63, 18], [84, 32], [88, 57], [70, 75]]
+  6: [[50, 84], [7, 76], [7, 22], [50, 12], [93, 22], [93, 76]],
+  7: [[50, 84], [22, 79], [7, 50], [30, 13], [70, 13], [93, 50], [78, 79]],
+  8: [[50, 85], [27, 80], [7, 56], [20, 14], [50, 10], [80, 14], [93, 56], [73, 80]],
+  9: [[50, 86], [30, 81], [7, 61], [7, 31], [35, 11], [65, 11], [93, 31], [93, 61], [70, 81]]
 };
 const POSITIONS = {
   6: ["UTG", "MP", "CO", "BTN", "SB", "BB"],
@@ -62,7 +62,8 @@ function render() {
   bindKickButtons();
   bindCardPreview();
   renderShowdownControls();
-  document.querySelector("#log").innerHTML = snapshot.log.map((item) => `<li>${item}</li>`).join("");
+  document.querySelector("#log").innerHTML = snapshot.log.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+  renderChat();
   document.querySelector("#checkCallButton").disabled = !snapshot.controls.canAct;
   document.querySelector("#betRaiseButton").disabled = !snapshot.controls.canAct;
   document.querySelector("#foldButton").disabled = !snapshot.controls.canAct;
@@ -150,6 +151,35 @@ function renderSettlement() {
       ${awards.map(renderAward).join("") || `<p>정산 내역 없음</p>`}
     </div>
   `;
+}
+
+function renderChat() {
+  const list = document.querySelector("#chatMessages");
+  if (!list) return;
+  const messages = snapshot.chat || [];
+  list.innerHTML = messages.map((message) => (
+    `<li><strong style="--chat-name-color:${chatColor(message.senderKey || message.name)}">${escapeHtml(message.name)}</strong> : <span>${escapeHtml(message.text)}</span></li>`
+  )).join("");
+}
+
+function chatColor(key) {
+  const text = String(key || "viewer");
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 72%, 68%)`;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char]));
 }
 
 function renderAward(award) {
@@ -454,6 +484,29 @@ async function kickSeat(seatId) {
   }
 }
 
+async function sendChat(event) {
+  event.preventDefault();
+  const input = document.querySelector("#chatInput");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  try {
+    await postJson("/api/chat", { clientId, text });
+    switchPanelTab("chat");
+  } catch (error) {
+    input.value = text;
+    alert(error.message);
+  }
+}
+
+function switchPanelTab(tabName) {
+  document.querySelectorAll("[data-panel-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.panelTab === tabName);
+  });
+  document.querySelector("#chatPanel").classList.toggle("active", tabName === "chat");
+  document.querySelector("#logPanel").classList.toggle("active", tabName === "log");
+}
+
 async function leaveSeat() {
   if (!snapshot || snapshot.seatId === null) return;
   try {
@@ -494,6 +547,10 @@ document.querySelector("#leaveButton").addEventListener("click", leaveSeat);
 document.querySelector("#fillAiButton").addEventListener("click", fillAiSeats);
 document.querySelector("#newHandButton").addEventListener("click", newHand);
 document.querySelector("#playerCount").addEventListener("change", newHand);
+document.querySelector("#chatForm").addEventListener("submit", sendChat);
+document.querySelectorAll("[data-panel-tab]").forEach((button) => {
+  button.addEventListener("click", () => switchPanelTab(button.dataset.panelTab));
+});
 document.querySelector("#checkCallButton").addEventListener("click", () => postAction({ type: "checkCall" }));
 document.querySelector("#betRaiseButton").addEventListener("click", () => postAction({ type: "betRaise", amount: Number(document.querySelector("#raiseAmount").value) }));
 document.querySelector("#foldButton").addEventListener("click", () => postAction({ type: "fold" }));
