@@ -84,17 +84,20 @@ function render() {
 function updateNicknameControls() {
   const input = document.querySelector("#nicknameInput");
   const joinButton = document.querySelector("#joinButton");
-  if (!input || !joinButton) return;
+  const leaveButton = document.querySelector("#leaveButton");
+  if (!input || !joinButton || !leaveButton) return;
   if (input.value !== sanitizeNickname(input.value, "")) input.value = sanitizeNickname(input.value, "");
   if (snapshot.seatId !== null) {
     input.disabled = false;
     joinButton.disabled = false;
     joinButton.textContent = "닉변";
+    leaveButton.disabled = false;
     return;
   }
   input.disabled = false;
   joinButton.disabled = false;
   joinButton.textContent = "착석";
+  leaveButton.disabled = true;
 }
 
 function renderActionTimer() {
@@ -451,6 +454,16 @@ async function kickSeat(seatId) {
   }
 }
 
+async function leaveSeat() {
+  if (!snapshot || snapshot.seatId === null) return;
+  try {
+    await postJson("/api/leave", { clientId });
+  } catch (error) {
+    alert(error.message);
+    await fetchState();
+  }
+}
+
 function sendLeaveBeacon() {
   if (!snapshot || snapshot.seatId === null) return;
   const body = JSON.stringify({ clientId });
@@ -477,6 +490,7 @@ document.querySelector("#nicknameInput").addEventListener("input", (event) => {
   localStorage.setItem("hwatu-nickname", event.target.value);
 });
 document.querySelector("#joinButton").addEventListener("click", joinSeat);
+document.querySelector("#leaveButton").addEventListener("click", leaveSeat);
 document.querySelector("#fillAiButton").addEventListener("click", fillAiSeats);
 document.querySelector("#newHandButton").addEventListener("click", newHand);
 document.querySelector("#playerCount").addEventListener("change", newHand);

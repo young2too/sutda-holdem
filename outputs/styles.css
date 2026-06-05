@@ -145,6 +145,17 @@ button {
   font-weight: 700;
 }
 
+.danger-button {
+  border-color: rgba(255, 103, 103, 0.45);
+  background: rgba(112, 32, 32, 0.42);
+  color: #ffd0d0;
+}
+
+.danger-button:hover:not(:disabled) {
+  border-color: rgba(255, 165, 94, 0.8);
+  color: #ffe1bd;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
