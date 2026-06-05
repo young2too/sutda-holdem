@@ -11,6 +11,10 @@ const SUITS = ["♠", "♥", "♦", "♣"];
 const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 const STREET_NAMES = ["프리플랍", "플랍", "턴", "리버", "쇼다운 준비", "쇼다운"];
 const POSITIONS = {
+  2: ["SB", "BB"],
+  3: ["BTN", "SB", "BB"],
+  4: ["UTG", "BTN", "SB", "BB"],
+  5: ["UTG", "CO", "BTN", "SB", "BB"],
   6: ["UTG", "MP", "CO", "BTN", "SB", "BB"],
   7: ["UTG", "MP", "HJ", "CO", "BTN", "SB", "BB"],
   8: ["UTG", "UTG+1", "MP", "HJ", "CO", "BTN", "SB", "BB"],
@@ -33,14 +37,24 @@ let state = createHand(6, []);
 function createHand(playerCount, previousPlayers) {
   handNumber += 1;
   const deck = shuffle(buildDeck());
-  const positions = POSITIONS[playerCount];
-  const dealerOffset = (handNumber - 1) % playerCount;
-  const players = positions.map((position, index) => {
-    const prev = previousPlayers[index] || {};
+  const seats = Array.from({ length: playerCount }, (_, index) => previousPlayers[index] || {});
+  const occupiedSeats = seats
+    .map((prev, index) => ({ prev, index, occupied: Boolean(prev.clientId || prev.ai) }))
+    .filter((seat) => seat.occupied);
+  const occupiedCount = occupiedSeats.length;
+  const handPositions = POSITIONS[occupiedCount] || [];
+  const dealerOffset = occupiedCount ? (handNumber - 1) % occupiedCount : 0;
+  const positionBySeat = new Map();
+  occupiedSeats.forEach(({ index }, orderIndex) => {
+    if (handPositions.length) {
+      positionBySeat.set(index, handPositions[(orderIndex - dealerOffset + occupiedCount) % occupiedCount]);
+    }
+  });
+  const players = seats.map((prev, index) => {
     const occupied = Boolean(prev.clientId || prev.ai);
     const cards = occupied ? deck.splice(0, 2) : [];
     const firstSutdaCard = cards.find(isSutdaUsable);
-    const assignedPosition = positions[(index - dealerOffset + playerCount) % playerCount];
+    const assignedPosition = positionBySeat.get(index) || "";
     return {
       id: index,
       name: occupied ? (prev.name || `AI ${index + 1}`) : "",
@@ -62,7 +76,6 @@ function createHand(playerCount, previousPlayers) {
     };
   });
   const log = [`${playerCount}인 테이블 새 핸드.`];
-  const occupiedCount = players.filter(isOccupied).length;
   let currentPlayer = -1;
   let currentBet = 0;
   let pot = 0;
@@ -74,7 +87,7 @@ function createHand(playerCount, previousPlayers) {
       postBlind(players[bbIndex], 10);
       currentBet = 10;
       pot = 15;
-      currentPlayer = firstActiveFromPosition("UTG", players);
+      currentPlayer = firstActiveFromPosition(firstActionPositionForStreet(0, occupiedCount), players, 0);
       log.push("SB 5, BB 10.");
     } else {
       currentPlayer = firstActiveIndex(players, 0);
@@ -87,6 +100,7 @@ function createHand(playerCount, previousPlayers) {
     deck,
     community: deck.splice(0, 5),
     playerCount,
+    positionCount: occupiedCount,
     handNumber,
     street: 0,
     currentPlayer,
@@ -186,13 +200,44 @@ function firstActiveIndex(players = state.players, start = 0) {
   return -1;
 }
 
-function firstActiveFromPosition(position, players = state.players) {
-  const index = players.findIndex((player) => isOccupied(player) && player.position === position);
-  return firstActiveIndex(players, index >= 0 ? index : 0);
+function positionCountFor(players = state.players) {
+  if (state && players === state.players && state.positionCount) return state.positionCount;
+  return players.filter(isOccupied).length;
+}
+
+function bettingOrderForStreet(street = state.street, positionCount = positionCountFor()) {
+  const preflopOrder = POSITIONS[positionCount] || POSITIONS[6];
+  if (street === 0) return preflopOrder;
+  if (positionCount === 2) return ["BB", "SB"];
+  const smallBlindIndex = preflopOrder.indexOf("SB");
+  return smallBlindIndex >= 0 ? [...preflopOrder.slice(smallBlindIndex), ...preflopOrder.slice(0, smallBlindIndex)] : preflopOrder;
+}
+
+function firstActionPositionForStreet(street = state.street, positionCount = positionCountFor()) {
+  return bettingOrderForStreet(street, positionCount)[0] || "UTG";
+}
+
+function firstActiveFromPosition(position, players = state.players, street = state ? state.street : 0) {
+  const order = bettingOrderForStreet(street, positionCountFor(players));
+  const start = order.indexOf(position);
+  const rotatedOrder = start >= 0 ? [...order.slice(start), ...order.slice(0, start)] : order;
+  for (const positionName of rotatedOrder) {
+    const index = players.findIndex((player) => isOccupied(player) && !player.folded && player.position === positionName);
+    if (index >= 0) return index;
+  }
+  return -1;
 }
 
 function nextActiveIndex(from) {
-  return firstActiveIndex(state.players, (from + 1) % state.players.length);
+  const player = state.players[from];
+  const order = bettingOrderForStreet();
+  const start = order.indexOf(player ? player.position : "");
+  const rotatedOrder = start >= 0 ? [...order.slice(start + 1), ...order.slice(0, start + 1)] : order;
+  for (const positionName of rotatedOrder) {
+    const index = state.players.findIndex((item) => isOccupied(item) && !item.folded && item.position === positionName);
+    if (index >= 0) return index;
+  }
+  return -1;
 }
 
 function isOwner(player, clientId) {
@@ -559,7 +604,7 @@ function advanceStreet() {
     player.acted = !isOccupied(player) || player.folded;
     if (isOccupied(player) && !player.folded) player.lastAction = "";
   });
-  state.currentPlayer = firstActiveFromPosition("SB");
+  state.currentPlayer = firstActiveFromPosition(firstActionPositionForStreet(state.street));
   state.log.push(`${STREET_NAMES[state.street]} 카드가 열렸습니다.`);
 }
 
