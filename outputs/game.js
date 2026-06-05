@@ -68,11 +68,17 @@ function render() {
   document.querySelector("#betRaiseButton").disabled = !snapshot.controls.canAct;
   document.querySelector("#foldButton").disabled = !snapshot.controls.canAct;
   const fillAiButton = document.querySelector("#fillAiButton");
+  const mobileFillAiButton = document.querySelector("#mobileFillAiButton");
   fillAiButton.hidden = !snapshot.isHost;
   fillAiButton.disabled = !snapshot.isHost;
+  mobileFillAiButton.hidden = !snapshot.isHost;
+  mobileFillAiButton.disabled = !snapshot.isHost;
   const newHandButton = document.querySelector("#newHandButton");
+  const mobileNewHandButton = document.querySelector("#mobileNewHandButton");
   newHandButton.hidden = !snapshot.isHost;
   newHandButton.disabled = !snapshot.isHost;
+  mobileNewHandButton.hidden = !snapshot.isHost;
+  mobileNewHandButton.disabled = !snapshot.isHost;
   document.querySelector("#playerCount").disabled = !snapshot.isHost;
   document.querySelector("#readyNotice").hidden = !snapshot.readyPhase || snapshot.showdown;
   renderActionControls();
@@ -86,6 +92,7 @@ function updateNicknameControls() {
   const input = document.querySelector("#nicknameInput");
   const joinButton = document.querySelector("#joinButton");
   const leaveButton = document.querySelector("#leaveButton");
+  const mobileLeaveButton = document.querySelector("#mobileLeaveButton");
   if (!input || !joinButton || !leaveButton) return;
   if (input.value !== sanitizeNickname(input.value, "")) input.value = sanitizeNickname(input.value, "");
   if (snapshot.seatId !== null) {
@@ -93,12 +100,14 @@ function updateNicknameControls() {
     joinButton.disabled = false;
     joinButton.textContent = "닉변";
     leaveButton.disabled = false;
+    if (mobileLeaveButton) mobileLeaveButton.disabled = false;
     return;
   }
   input.disabled = false;
   joinButton.disabled = false;
   joinButton.textContent = "착석";
   leaveButton.disabled = true;
+  if (mobileLeaveButton) mobileLeaveButton.disabled = true;
 }
 
 function renderActionTimer() {
@@ -261,7 +270,7 @@ function renderPlayer(player) {
   const actionText = isActive ? "액션 중" : (player.lastAction || (player.ai ? "AI 대기" : "대기"));
   const kickButton = player.canKick ? `<button class="kick-button" type="button" data-kick-seat="${player.id}" title="강퇴">강퇴</button>` : "";
   return `
-    <article class="player seat ${isActive ? "active-player" : ""} ${player.folded ? "folded-player" : ""} ${owned ? "my-seat" : ""}" style="--seat-x:${seat[0]}%; --seat-y:${seat[1]}%;">
+    <article class="player seat ${isActive ? "active-player" : ""} ${player.folded ? "folded-player" : ""} ${owned ? "my-seat" : "opponent-seat"}" style="--seat-x:${seat[0]}%; --seat-y:${seat[1]}%;">
       <div class="player-head">
         <div>
           <h2>${player.name} <span class="position">${player.position}</span></h2>
@@ -507,6 +516,10 @@ function switchPanelTab(tabName) {
   document.querySelector("#logPanel").classList.toggle("active", tabName === "log");
 }
 
+function toggleMobileComms(open) {
+  document.body.classList.toggle("mobile-comms-open", open);
+}
+
 async function leaveSeat() {
   if (!snapshot || snapshot.seatId === null) return;
   try {
@@ -546,11 +559,16 @@ document.querySelector("#joinButton").addEventListener("click", joinSeat);
 document.querySelector("#leaveButton").addEventListener("click", leaveSeat);
 document.querySelector("#fillAiButton").addEventListener("click", fillAiSeats);
 document.querySelector("#newHandButton").addEventListener("click", newHand);
+document.querySelector("#mobileLeaveButton").addEventListener("click", leaveSeat);
+document.querySelector("#mobileFillAiButton").addEventListener("click", fillAiSeats);
+document.querySelector("#mobileNewHandButton").addEventListener("click", newHand);
 document.querySelector("#playerCount").addEventListener("change", newHand);
 document.querySelector("#chatForm").addEventListener("submit", sendChat);
 document.querySelectorAll("[data-panel-tab]").forEach((button) => {
   button.addEventListener("click", () => switchPanelTab(button.dataset.panelTab));
 });
+document.querySelector("#mobileChatButton").addEventListener("click", () => toggleMobileComms(true));
+document.querySelector("#mobileCloseCommsButton").addEventListener("click", () => toggleMobileComms(false));
 document.querySelector("#checkCallButton").addEventListener("click", () => postAction({ type: "checkCall" }));
 document.querySelector("#betRaiseButton").addEventListener("click", () => postAction({ type: "betRaise", amount: Number(document.querySelector("#raiseAmount").value) }));
 document.querySelector("#foldButton").addEventListener("click", () => postAction({ type: "fold" }));
@@ -562,6 +580,7 @@ document.querySelector("#raiseAmount").addEventListener("input", (event) => {
   document.querySelector("#raiseAmountLabel").value = event.target.value;
 });
 document.querySelector("#helpButton").addEventListener("click", () => document.querySelector("#helpDialog").showModal());
+document.querySelector("#mobileHelpButton").addEventListener("click", () => document.querySelector("#helpDialog").showModal());
 document.querySelector("#closeHelpButton").addEventListener("click", () => document.querySelector("#helpDialog").close());
 document.querySelector("#helpDialog").addEventListener("click", (event) => {
   if (event.target.id === "helpDialog") event.target.close();

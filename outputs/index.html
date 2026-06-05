@@ -33,6 +33,22 @@
           <button id="fillAiButton" type="button" hidden>AI 채우기</button>
           <button id="helpButton" type="button">족보 도움말</button>
           <button id="newHandButton" class="primary-button" type="button">새 핸드</button>
+          <button id="mobileChatButton" class="mobile-chat-button" type="button" aria-label="채팅과 로그 열기">
+            <span></span>
+          </button>
+          <details class="mobile-menu">
+            <summary aria-label="메뉴">
+              <span></span>
+              <span></span>
+              <span></span>
+            </summary>
+            <div class="mobile-menu-list">
+              <button id="mobileLeaveButton" class="danger-button" type="button" disabled>나가기</button>
+              <button id="mobileFillAiButton" type="button" hidden>AI 채우기</button>
+              <button id="mobileHelpButton" type="button">족보 도움말</button>
+              <button id="mobileNewHandButton" class="primary-button" type="button">새 핸드</button>
+            </div>
+          </details>
         </div>
       </header>
       <div id="connectionStatus" class="connection-status">서버 연결 대기</div>
@@ -121,6 +137,7 @@
         <div class="panel-tabs" role="tablist" aria-label="대화와 로그">
           <button id="chatTab" class="tab-button active" type="button" data-panel-tab="chat">채팅</button>
           <button id="logTab" class="tab-button" type="button" data-panel-tab="log">로그</button>
+          <button id="mobileCloseCommsButton" class="mobile-close-comms" type="button" aria-label="닫기">닫기</button>
         </div>
         <div id="chatPanel" class="tab-panel active">
           <ul id="chatMessages" class="chat-list"></ul>

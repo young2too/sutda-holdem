@@ -784,19 +784,23 @@ function scoreFive(cards) {
   const straightHigh = findStraightHigh(unique);
   const flush = cards.every((card) => card.suit === cards[0].suit);
   const counts = unique.map((value) => ({ value, count: values.filter((v) => v === value).length })).sort((a, b) => b.count - a.count || b.value - a.value);
-  if (flush && straightHigh) return hand(8, [straightHigh], "스트레이트 플러시");
-  if (counts[0].count === 4) return hand(7, [counts[0].value, counts[1].value], "포카드");
-  if (counts[0].count === 3 && counts[1].count === 2) return hand(6, [counts[0].value, counts[1].value], "풀하우스");
-  if (flush) return hand(5, values, "플러시");
-  if (straightHigh) return hand(4, [straightHigh], "스트레이트");
-  if (counts[0].count === 3) return hand(3, [counts[0].value, ...counts.slice(1).map((c) => c.value)], "트리플");
-  if (counts[0].count === 2 && counts[1].count === 2) return hand(2, [counts[0].value, counts[1].value, counts[2].value], "투페어");
-  if (counts[0].count === 2) return hand(1, [counts[0].value, ...counts.slice(1).map((c) => c.value)], "원페어");
-  return hand(0, values, "하이카드");
+  if (flush && straightHigh) return hand(8, [straightHigh], `${rankLabel(straightHigh)}스트레이트 플러시`);
+  if (counts[0].count === 4) return hand(7, [counts[0].value, counts[1].value], `${rankLabel(counts[0].value)}포카드`);
+  if (counts[0].count === 3 && counts[1].count === 2) return hand(6, [counts[0].value, counts[1].value], `${rankLabel(counts[0].value)},${rankLabel(counts[1].value)}풀하우스`);
+  if (flush) return hand(5, values, `${rankLabel(values[0])}플러시`);
+  if (straightHigh) return hand(4, [straightHigh], `${rankLabel(straightHigh)}스트레이트`);
+  if (counts[0].count === 3) return hand(3, [counts[0].value, ...counts.slice(1).map((c) => c.value)], `${rankLabel(counts[0].value)}트리플`);
+  if (counts[0].count === 2 && counts[1].count === 2) return hand(2, [counts[0].value, counts[1].value, counts[2].value], `${rankLabel(counts[0].value)},${rankLabel(counts[1].value)}투페어`);
+  if (counts[0].count === 2) return hand(1, [counts[0].value, ...counts.slice(1).map((c) => c.value)], `${rankLabel(counts[0].value)}원페어`);
+  return hand(0, values, `${rankLabel(values[0])}하이`);
 }
 
 function hand(category, kickers, name) {
   return { score: category * 1000000, kickers, name };
+}
+
+function rankLabel(value) {
+  return ({ 14: "A", 13: "K", 12: "Q", 11: "J" }[value] || String(value));
 }
 
 function findStraightHigh(uniqueValues) {
