@@ -142,9 +142,10 @@ const allInRunout = run(`
   });
   state.pot = 2000;
   advanceStreet();
-  return { street: state.street, showdown: state.showdown, readyPhase: state.readyPhase, currentPlayer: state.currentPlayer };
+  const p0State = safeState("p0", 0);
+  return { street: state.street, showdown: state.showdown, readyPhase: state.readyPhase, currentPlayer: state.currentPlayer, canReady: p0State.controls.canReady };
 `);
-assert(allInRunout.showdown && allInRunout.street === 5 && allInRunout.currentPlayer === -1, "all-in runout did not reach showdown", allInRunout);
+assert(allInRunout.readyPhase && !allInRunout.showdown && allInRunout.street === 4 && allInRunout.currentPlayer === -1 && allInRunout.canReady, "all-in runout skipped showdown choice", allInRunout);
 
 const allInAutoFromState = run(`
   state = createHand(2, [
@@ -158,10 +159,10 @@ const allInAutoFromState = run(`
     player.contribution = 1000;
   });
   state.pot = 2000;
-  safeState("p0");
-  return { street: state.street, showdown: state.showdown, cardsRevealed: state.cardsRevealed, currentPlayer: state.currentPlayer };
+  const p0State = safeState("p0", 0);
+  return { street: state.street, readyPhase: state.readyPhase, showdown: state.showdown, cardsRevealed: state.cardsRevealed, currentPlayer: state.currentPlayer, canReady: p0State.controls.canReady };
 `);
-assert(allInAutoFromState.showdown && allInAutoFromState.cardsRevealed && allInAutoFromState.street === 5 && allInAutoFromState.currentPlayer === -1, "all-in players did not auto-showdown from state polling", allInAutoFromState);
+assert(allInAutoFromState.readyPhase && !allInAutoFromState.showdown && !allInAutoFromState.cardsRevealed && allInAutoFromState.street === 4 && allInAutoFromState.currentPlayer === -1 && allInAutoFromState.canReady, "all-in players did not stop for showdown choice from state polling", allInAutoFromState);
 
 const foldWinKeepsCardsHidden = run(`
   state = createHand(2, [
@@ -278,6 +279,45 @@ assert(
   readableActionLabels.allInLabel.startsWith("올인"),
   "action labels are not readable Korean",
   readableActionLabels
+);
+
+const allInRunoutStopsForShowdownChoice = run(`
+  state = createHand(2, [
+    { clientId: "p0", name: "P0", stack: 0, lastSeen: Date.now() },
+    { clientId: "p1", name: "P1", stack: 0, lastSeen: Date.now() }
+  ]);
+  state.players.forEach((player) => {
+    player.folded = false;
+    player.acted = true;
+    player.ready = false;
+    player.bet = 500;
+    player.streetBet = 500;
+    player.contribution = 500;
+    player.stack = 0;
+  });
+  state.pot = 1000;
+  state.street = 3;
+  state.currentPlayer = -1;
+  state.currentBet = 500;
+  const autoResult = runAutoShowdownIfNeeded();
+  const p0State = safeState("p0", 0);
+  return {
+    autoResult,
+    readyPhase: state.readyPhase,
+    showdown: state.showdown,
+    p0Ready: state.players[0].ready,
+    canReady: p0State.controls.canReady,
+    showControls: p0State.readyPhase && !p0State.showdown
+  };
+`);
+assert(
+  allInRunoutStopsForShowdownChoice.readyPhase === true &&
+  allInRunoutStopsForShowdownChoice.showdown === false &&
+  allInRunoutStopsForShowdownChoice.p0Ready === false &&
+  allInRunoutStopsForShowdownChoice.canReady === true &&
+  allInRunoutStopsForShowdownChoice.showControls === true,
+  "all-in runout skipped the showdown choice phase",
+  allInRunoutStopsForShowdownChoice
 );
 
 vm.runInContext("clearAiTimer(); clearActionTimer(); clearAutoHandTimer();", ctx);

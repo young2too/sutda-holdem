@@ -208,14 +208,10 @@ function runAutoShowdownIfNeeded() {
   if (!shouldAutoShowdown()) return false;
   clearActionTimer();
   clearAiTimer();
-  while (!state.showdown) {
-    if (state.street >= 3) {
-      doShowdown();
-      return true;
-    }
+  while (!state.showdown && !state.readyPhase) {
     advanceStreet();
   }
-  return true;
+  return state.showdown;
 }
 
 function isHandInProgress() {
@@ -714,12 +710,11 @@ function enterReadyPhase() {
   state.players.forEach((player) => {
     player.bet = 0;
     player.streetBet = 0;
-    player.ready = !isOccupied(player) || player.folded || player.stack === 0;
+    player.ready = !isOccupied(player) || player.folded;
     if (isOccupied(player) && !player.folded) player.lastAction = "";
     if (isOccupied(player) && !player.folded) chooseDefaultSutdaDeclaration(player);
   });
   state.log.push("리버 베팅 종료. 생존 플레이어의 쇼다운 준비를 기다립니다.");
-  if (activePlayers().every((player) => player.ready)) doShowdown();
 }
 
 function chooseDefaultSutdaDeclaration(player) {
