@@ -31,6 +31,10 @@
           <button id="joinButton" type="button">착석</button>
           <button id="leaveButton" class="danger-button" type="button" disabled>나가기</button>
           <button id="fillAiButton" type="button" hidden>AI 채우기</button>
+          <label class="volume-field">
+            음량
+            <input id="volumeControl" type="range" min="0" max="100" step="1" value="70">
+          </label>
           <button id="helpButton" type="button">족보 도움말</button>
           <button id="newHandButton" class="primary-button" type="button">새 핸드</button>
           <button id="mobileChatButton" class="mobile-chat-button" type="button" aria-label="채팅과 로그 열기">
@@ -45,6 +49,10 @@
             <div class="mobile-menu-list">
               <button id="mobileLeaveButton" class="danger-button" type="button" disabled>나가기</button>
               <button id="mobileFillAiButton" type="button" hidden>AI 채우기</button>
+              <label class="volume-field mobile-volume-field">
+                음량
+                <input id="mobileVolumeControl" type="range" min="0" max="100" step="1" value="70">
+              </label>
               <button id="mobileHelpButton" type="button">족보 도움말</button>
               <button id="mobileNewHandButton" class="primary-button" type="button">새 핸드</button>
             </div>
@@ -104,7 +112,11 @@
           <input id="raiseAmount" type="range" min="10" max="1000" step="5" value="20">
           <output id="raiseAmountLabel" for="raiseAmount">20</output>
         </div>
-        <button id="betRaiseButton" type="button">베팅/레이즈</button>
+        <div class="raise-action">
+          <div id="raisePresets" class="raise-presets" aria-label="빠른 레이즈"></div>
+          <button id="betRaiseButton" type="button">베팅/레이즈</button>
+        </div>
+        <button id="allInButton" type="button">올인</button>
         <button id="foldButton" type="button">폴드</button>
         <div id="ropeTimer" class="rope-timer" aria-label="액션 제한 시간" hidden>
           <div class="rope-track">

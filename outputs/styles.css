@@ -88,6 +88,18 @@ input {
   gap: 4px;
 }
 
+.volume-field {
+  width: 112px;
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.volume-field input {
+  width: 100%;
+  accent-color: var(--gold);
+}
+
 .nickname-field input {
   width: 86px;
   min-height: 36px;
@@ -567,6 +579,97 @@ button:disabled {
   color: #ffaaa0;
 }
 
+.sutda-retry-overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 34;
+  width: min(520px, 78%);
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(223, 186, 99, 0.72);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(5, 22, 19, 0.94);
+  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.46);
+  text-align: center;
+  transform: translate(-50%, -50%) scale(0.96);
+  animation: retry-panel-in 180ms ease-out forwards;
+}
+
+.sutda-retry-overlay > strong {
+  color: var(--gold);
+  font-size: 18px;
+}
+
+.sutda-retry-table {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.sutda-retry-player {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sutda-retry-player span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.sutda-retry-cards {
+  display: flex;
+  min-height: 68px;
+  justify-content: center;
+  gap: 5px;
+}
+
+.sutda-retry-card-shell {
+  display: block;
+  opacity: 0;
+  transform: translateY(-18px) scale(0.82) rotate(-5deg);
+}
+
+.sutda-retry-card-shell .card {
+  width: 44px;
+  height: 64px;
+  border-radius: 5px;
+}
+
+.sutda-retry-overlay.dealing .sutda-retry-card-shell {
+  animation: retry-card-deal 360ms ease-out forwards;
+  animation-delay: var(--deal-delay);
+}
+
+.sutda-retry-player b {
+  min-height: 18px;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+@keyframes retry-panel-in {
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes retry-card-deal {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0);
+  }
+}
+
 @keyframes chip-flight {
   0% {
     opacity: 0;
@@ -675,7 +778,65 @@ select {
 }
 
 .actions button {
-  min-width: 110px;
+  min-width: 96px;
+}
+
+.raise-action {
+  position: relative;
+  display: inline-flex;
+}
+
+.raise-action::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  bottom: 100%;
+  height: 12px;
+}
+
+.raise-action > button {
+  width: 100%;
+}
+
+.raise-presets {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  z-index: 42;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(52px, 1fr));
+  gap: 6px;
+  min-width: 190px;
+  border: 1px solid rgba(223, 186, 99, 0.48);
+  border-radius: 8px;
+  padding: 7px;
+  background: rgba(8, 24, 22, 0.96);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 6px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.raise-action:hover .raise-presets,
+.raise-action:focus-within .raise-presets {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.raise-presets:empty {
+  display: none;
+}
+
+.actions .raise-presets button {
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 8px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .rope-timer {
@@ -754,7 +915,7 @@ select {
 
 .raise-control {
   display: grid;
-  grid-template-columns: auto minmax(160px, 260px) 54px;
+  grid-template-columns: auto minmax(130px, 220px) 54px;
   align-items: center;
   gap: 8px;
   min-height: 36px;
@@ -1093,7 +1254,7 @@ select {
 
 .chat-list {
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   list-style: none;
   gap: 8px;
   overflow: auto;
@@ -1256,6 +1417,10 @@ select {
     min-width: 0;
   }
 
+  .table-controls > .volume-field {
+    display: none;
+  }
+
   .nickname-field input {
     min-width: 0;
     width: 100%;
@@ -1316,6 +1481,11 @@ select {
 
   .mobile-menu-list button {
     width: 100%;
+  }
+
+  .mobile-volume-field {
+    width: 100%;
+    padding: 4px 2px;
   }
 
   .mobile-chat-button {
@@ -1668,7 +1838,7 @@ select {
     position: relative;
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     padding: 8px;
     background: rgba(8, 24, 22, 0.96);
@@ -1718,14 +1888,28 @@ select {
     grid-row: 3;
   }
 
-  #betRaiseButton {
+  .raise-action {
     grid-column: 2;
     grid-row: 3;
   }
 
-  #foldButton {
+  .raise-action #betRaiseButton {
+    width: 100%;
+  }
+
+  #allInButton {
     grid-column: 3;
     grid-row: 3;
+  }
+
+  #foldButton {
+    grid-column: 4;
+    grid-row: 3;
+  }
+
+  .raise-presets {
+    min-width: 176px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .showdown-controls {

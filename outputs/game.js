@@ -11,6 +11,7 @@ const POSITIONS = {
   8: ["UTG", "UTG+1", "MP", "HJ", "CO", "BTN", "SB", "BB"],
   9: ["UTG", "UTG+1", "MP", "MP+1", "HJ", "CO", "BTN", "SB", "BB"]
 };
+const BIG_BLIND = 10;
 
 const clientId = getClientId();
 let snapshot = null;
@@ -20,6 +21,14 @@ let visualHandNumber = null;
 let actionTimerKey = "";
 let actionTimerSyncedAt = 0;
 let actionTimerRemainingAtSync = 0;
+let audioContext = null;
+let audioReady = false;
+let musicMode = "";
+let musicTimer = null;
+let musicStep = 0;
+let lastTurnSoundKey = "";
+let lastTickAt = 0;
+let audioVolume = Number(localStorage.getItem("hwatu-audio-volume") || 70) / 100;
 const savedNickname = localStorage.getItem("hwatu-nickname") || "";
 
 function getClientId() {
@@ -57,15 +66,19 @@ function render() {
   document.querySelector("#streetLabel").textContent = snapshot.streetName;
   document.querySelector("#communityCards").innerHTML = snapshot.community.map(renderCard).join("");
   const playersEl = document.querySelector("#players");
-  playersEl.className = `players table-seats count-${snapshot.playerCount} ${snapshot.showdown ? "showdown-seats" : ""}`;
-  playersEl.innerHTML = snapshot.players.map(renderPlayer).join("");
+  playersEl.className = `players table-seats count-${snapshot.playerCount} ${snapshot.cardsRevealed ? "showdown-seats" : ""}`;
+  playersEl.innerHTML = displayPlayers().map(({ player, visualIndex }) => renderPlayer(player, visualIndex)).join("");
   bindKickButtons();
   bindCardPreview();
   renderShowdownControls();
   document.querySelector("#log").innerHTML = snapshot.log.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
   renderChat();
   document.querySelector("#checkCallButton").disabled = !snapshot.controls.canAct;
-  document.querySelector("#betRaiseButton").disabled = !snapshot.controls.canAct;
+  document.querySelector("#betRaiseButton").disabled = !snapshot.controls.canAct || !snapshot.controls.canRaise;
+  const allInButton = document.querySelector("#allInButton");
+  const myPlayer = currentPlayerSeat();
+  allInButton.disabled = !snapshot.controls.canAct || !myPlayer || myPlayer.stack <= 0;
+  allInButton.textContent = myPlayer && myPlayer.stack > 0 ? `올인 ${myPlayer.stack}` : "올인";
   document.querySelector("#foldButton").disabled = !snapshot.controls.canAct;
   const fillAiButton = document.querySelector("#fillAiButton");
   const mobileFillAiButton = document.querySelector("#mobileFillAiButton");
@@ -85,7 +98,24 @@ function render() {
   document.querySelector("#connectionStatus").textContent = connectionText();
   updateNicknameControls();
   renderActionTimer();
+  updateMusicMode();
+  playTurnSoundIfNeeded();
   playVisualEvents();
+}
+
+function displayPlayers() {
+  const players = snapshot.players || [];
+  const count = snapshot.playerCount || players.length;
+  const offset = snapshot.seatId === null ? 0 : snapshot.seatId;
+  return players.map((_, index) => {
+    const player = players[(index + offset) % count];
+    return { player, visualIndex: index };
+  }).filter(({ player }) => Boolean(player));
+}
+
+function visualSeatIndex(playerId) {
+  if (!snapshot || snapshot.seatId === null) return playerId;
+  return (playerId - snapshot.seatId + snapshot.playerCount) % snapshot.playerCount;
 }
 
 function updateNicknameControls() {
@@ -132,6 +162,11 @@ function renderActionTimer() {
   timer.style.setProperty("--rope-progress", progress);
   timer.classList.toggle("rope-danger", progress <= 0.25);
   if (seconds) seconds.textContent = `${(remaining / 1000).toFixed(2)}s`;
+  const isMine = snapshot.seatId !== null && snapshot.currentPlayer === snapshot.seatId;
+  if (audioReady && isMine && progress <= 0.25 && performance.now() - lastTickAt > 620) {
+    lastTickAt = performance.now();
+    playSound("tick");
+  }
 }
 
 function getLocalActionRemaining() {
@@ -168,6 +203,126 @@ function escapeHtml(value) {
   }[char]));
 }
 
+function unlockAudio() {
+  if (audioReady) return;
+  const AudioEngine = window.AudioContext || window.webkitAudioContext;
+  if (!AudioEngine) return;
+  audioContext = audioContext || new AudioEngine();
+  audioContext.resume().then(() => {
+    audioReady = true;
+    updateMusicMode();
+  }).catch(() => {});
+}
+
+function tone(frequency, duration = 0.12, volume = 0.05, type = "sine", when = 0) {
+  if (!audioReady || !audioContext) return;
+  const scaledVolume = Math.max(0.0001, volume * audioVolume);
+  const start = audioContext.currentTime + when;
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(scaledVolume, start + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain).connect(audioContext.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+function playSound(kind) {
+  if (!audioReady) return;
+  speakAction(kind);
+  if (kind === "check") tone(520, 0.08, 0.035, "triangle");
+  if (kind === "fold") tone(170, 0.16, 0.045, "sawtooth");
+  if (kind === "call") {
+    tone(340, 0.09, 0.045, "triangle");
+    tone(440, 0.1, 0.035, "triangle", 0.08);
+  }
+  if (kind === "raise") {
+    tone(420, 0.08, 0.045, "square");
+    tone(630, 0.12, 0.04, "square", 0.08);
+  }
+  if (kind === "allIn") {
+    tone(220, 0.12, 0.055, "sawtooth");
+    tone(440, 0.14, 0.05, "sawtooth", 0.1);
+    tone(880, 0.18, 0.045, "square", 0.22);
+  }
+  if (kind === "tick") tone(980, 0.045, 0.028, "square");
+  if (kind === "turn") {
+    tone(660, 0.11, 0.055, "sine");
+    tone(880, 0.14, 0.05, "sine", 0.12);
+  }
+}
+
+function speakAction(kind) {
+  const words = { check: "체크", call: "콜", fold: "폴드", raise: "레이즈", allIn: "올인" };
+  const word = words[kind];
+  if (!word || !window.speechSynthesis || audioVolume <= 0) return;
+  const utterance = new SpeechSynthesisUtterance(word);
+  utterance.lang = "ko-KR";
+  utterance.rate = kind === "allIn" ? 0.95 : 1.08;
+  utterance.pitch = kind === "fold" ? 0.75 : kind === "allIn" ? 0.85 : 1;
+  utterance.volume = Math.min(1, audioVolume * 1.25);
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
+function isAllInShowdownMusic() {
+  if (!snapshot || snapshot.showdown) return false;
+  const livePlayers = (snapshot.players || []).filter((player) => player.occupied && !player.folded);
+  return livePlayers.length > 1 && livePlayers.every((player) => player.stack <= 0);
+}
+
+function updateMusicMode() {
+  if (!audioReady) return;
+  const nextMode = isAllInShowdownMusic() ? "allIn" : "table";
+  if (nextMode === musicMode) return;
+  stopMusic();
+  musicMode = nextMode;
+  musicStep = 0;
+  musicTimer = window.setInterval(playMusicStep, nextMode === "allIn" ? 260 : 520);
+  playMusicStep();
+}
+
+function stopMusic() {
+  if (musicTimer) window.clearInterval(musicTimer);
+  musicTimer = null;
+}
+
+function playMusicStep() {
+  if (!audioReady || !musicMode) return;
+  const tablePattern = [196, 247, 294, 247, 220, 262, 330, 262];
+  const allInPattern = [220, 330, 440, 554, 440, 330, 277, 370];
+  const pattern = musicMode === "allIn" ? allInPattern : tablePattern;
+  const note = pattern[musicStep % pattern.length];
+  tone(note, musicMode === "allIn" ? 0.18 : 0.28, musicMode === "allIn" ? 0.07 : 0.04, musicMode === "allIn" ? "sawtooth" : "sine");
+  if (musicStep % 2 === 0) tone(note / 2, musicMode === "allIn" ? 0.2 : 0.36, musicMode === "allIn" ? 0.04 : 0.026, "triangle");
+  musicStep += 1;
+}
+
+function syncVolumeControls(value = audioVolume) {
+  audioVolume = Math.max(0, Math.min(1, Number(value) || 0));
+  localStorage.setItem("hwatu-audio-volume", String(Math.round(audioVolume * 100)));
+  ["#volumeControl", "#mobileVolumeControl"].forEach((selector) => {
+    const control = document.querySelector(selector);
+    if (control && Number(control.value) !== Math.round(audioVolume * 100)) control.value = String(Math.round(audioVolume * 100));
+  });
+}
+
+function handleVolumeInput(event) {
+  syncVolumeControls(Number(event.target.value) / 100);
+  unlockAudio();
+}
+
+function playTurnSoundIfNeeded() {
+  if (!snapshot || snapshot.seatId === null || !snapshot.controls.canAct) return;
+  const key = `${snapshot.handNumber}:${snapshot.currentPlayer}:${snapshot.street}:${snapshot.currentBet}`;
+  if (snapshot.currentPlayer !== snapshot.seatId || key === lastTurnSoundKey) return;
+  lastTurnSoundKey = key;
+  playSound("turn");
+}
+
 function renderActionControls() {
   if (snapshot.showdown) {
     document.querySelector("#turnLabel").textContent = "핸드 종료";
@@ -176,6 +331,7 @@ function renderActionControls() {
     document.querySelector("#raiseAmount").disabled = true;
     document.querySelector("#raiseAmountLabel").textContent = "0";
     document.querySelector("#raiseAmountLabel").value = "0";
+    renderRaisePresets();
     return;
   }
   const acting = snapshot.controls.actingLabel || "액션 대기";
@@ -191,9 +347,72 @@ function renderActionControls() {
   slider.max = maxRaise;
   slider.step = 5;
   if (Number(slider.value) < minRaise || Number(slider.value) > maxRaise) slider.value = minRaise;
-  slider.disabled = !snapshot.controls.canAct || minRaise > maxRaise;
+  slider.disabled = !snapshot.controls.canAct || !snapshot.controls.canRaise || minRaise > maxRaise;
   label.value = slider.value;
   label.textContent = slider.value;
+  renderRaisePresets();
+}
+
+function currentPlayerSeat() {
+  return snapshot && snapshot.players ? snapshot.players.find((player) => player.mine) : null;
+}
+
+function renderRaisePresets() {
+  const presets = document.querySelector("#raisePresets");
+  if (!presets || !snapshot || snapshot.showdown) {
+    if (presets) presets.innerHTML = "";
+    return;
+  }
+  const options = snapshot.street === 0
+    ? [
+      { label: "2BB", kind: "bb", value: 2 },
+      { label: "3BB", kind: "bb", value: 3 },
+      { label: "6BB", kind: "bb", value: 6 }
+    ]
+    : [
+      { label: "1/3", kind: "pot", value: 1 / 3 },
+      { label: "1/2", kind: "pot", value: 1 / 2 },
+      { label: "1/1", kind: "pot", value: 1 }
+    ];
+  const disabled = !snapshot.controls.canAct || !snapshot.controls.canRaise;
+  presets.innerHTML = options.map((option) => (
+    `<button type="button" data-raise-preset-kind="${option.kind}" data-raise-preset-value="${option.value}" ${disabled ? "disabled" : ""}>${option.label}</button>`
+  )).join("");
+}
+
+function presetRaiseTarget(kind, value) {
+  const player = currentPlayerSeat();
+  if (!player) return Number(document.querySelector("#raiseAmount").value);
+  const minRaise = snapshot.controls.minRaiseTo || BIG_BLIND;
+  const maxRaise = snapshot.controls.maxRaiseTo || player.bet + player.stack;
+  const callAmount = snapshot.controls.callAmount || 0;
+  const rawTarget = kind === "bb"
+    ? Number(value) * BIG_BLIND
+    : player.bet + callAmount + Math.round(((snapshot.pot || 0) + callAmount) * Number(value) / 5) * 5;
+  return Math.max(minRaise, Math.min(maxRaise, rawTarget));
+}
+
+function setRaiseAmount(amount) {
+  const slider = document.querySelector("#raiseAmount");
+  const label = document.querySelector("#raiseAmountLabel");
+  slider.value = String(amount);
+  label.value = String(amount);
+  label.textContent = String(amount);
+}
+
+function chooseRaisePreset(button) {
+  if (!button || button.disabled) return;
+  const amount = presetRaiseTarget(button.dataset.raisePresetKind, Number(button.dataset.raisePresetValue));
+  setRaiseAmount(amount);
+  postAction({ type: "betRaise", amount });
+}
+
+function goAllIn() {
+  const player = currentPlayerSeat();
+  if (!player || !snapshot.controls.canAct || player.stack <= 0) return;
+  const amount = snapshot.controls.maxRaiseTo || player.bet + player.stack;
+  setRaiseAmount(amount);
+  postAction({ type: "betRaise", amount });
 }
 
 function renderShowdownControls() {
@@ -225,9 +444,9 @@ function connectionText() {
   return `${player.name} 접속 중${hostLabel}. 현재 포지션: ${player.position || "대기"}`;
 }
 
-function renderPlayer(player) {
+function renderPlayer(player, visualIndex = visualSeatIndex(player.id)) {
   const isActive = snapshot.currentPlayer === player.id && !snapshot.readyPhase && !snapshot.showdown && !player.folded;
-  const seat = SEAT_POSITIONS[snapshot.playerCount][player.id];
+  const seat = SEAT_POSITIONS[snapshot.playerCount][visualIndex];
   if (!player.occupied) {
     return `
       <article class="player seat empty-seat" style="--seat-x:${seat[0]}%; --seat-y:${seat[1]}%;">
@@ -238,7 +457,7 @@ function renderPlayer(player) {
   const owned = player.mine;
   const actionText = isActive ? "액션 중" : (player.lastAction || (player.ai ? "AI 대기" : "대기"));
   const kickButton = player.canKick ? `<button class="kick-button" type="button" data-kick-seat="${player.id}" title="강퇴">강퇴</button>` : "";
-  const declaration = snapshot.showdown && !player.folded && player.mode !== "hidden" ? `<span class="declaration-badge">${modeLabel(player.mode)}</span>` : "";
+  const declaration = snapshot.cardsRevealed && !player.folded && player.mode !== "hidden" ? `<span class="declaration-badge">${modeLabel(player.mode)}</span>` : "";
   const awardBadges = renderPlayerAwards(player);
   const winnerClass = awardBadges ? "winner-seat" : "";
   return `
@@ -294,7 +513,7 @@ function renderPlayerAwards(player) {
 }
 
 function renderPlayerCards(player) {
-  if (!snapshot.showdown || player.mode === "hidden" || player.folded) return player.cards.map((card) => renderCard(card)).join("");
+  if (!snapshot.cardsRevealed || player.mode === "hidden" || player.folded) return player.cards.map((card) => renderCard(card)).join("");
   if (player.mode === "sutda") {
     return player.cards.map((card) => (card && card.id === player.sutdaCard ? renderCard(card, "sutda-showdown-card") : renderCard(null, "showdown-hidden-card"))).join("");
   }
@@ -370,15 +589,26 @@ function playVisualEvents() {
   events
     .filter((event) => event.id > lastVisualEventId)
     .forEach((event) => {
-      if (event.type === "bet") animateBet(event);
-      if (event.type === "check" || event.type === "fold") flashAction(event);
-      if (event.type === "award") animateAwards(event.awards || []);
+      if (event.type === "bet") {
+        animateBet(event);
+        const label = String(event.label || "");
+        playSound(event.allIn ? "allIn" : (label.includes("콜") ? "call" : "raise"));
+      }
+      if (event.type === "check" || event.type === "fold") {
+        flashAction(event);
+        playSound(event.type);
+      }
+      if (event.type === "sutdaRetry") animateSutdaRetry(event);
+      if (event.type === "award") {
+        const retryDelay = events.some((item) => item.id > lastVisualEventId && item.type === "sutdaRetry") ? 4200 : 0;
+        animateAwards(event.awards || [], retryDelay);
+      }
     });
   lastVisualEventId = maxEventId;
 }
 
 function seatPoint(playerId) {
-  const seat = SEAT_POSITIONS[snapshot.playerCount][playerId] || [50, 50];
+  const seat = SEAT_POSITIONS[snapshot.playerCount][visualSeatIndex(playerId)] || [50, 50];
   return { x: seat[0], y: seat[1] };
 }
 
@@ -404,7 +634,7 @@ function animateBet(event) {
   });
 }
 
-function animateAwards(awards) {
+function animateAwards(awards, baseDelay = 0) {
   awards.forEach((award, awardIndex) => {
     award.winners.forEach((winner, winnerIndex) => {
       window.setTimeout(() => {
@@ -414,9 +644,40 @@ function animateAwards(awards) {
           text: `${award.label} +${award.share}`,
           className: "to-winner"
         });
-      }, (awardIndex * 220) + (winnerIndex * 120));
+      }, baseDelay + (awardIndex * 220) + (winnerIndex * 120));
     });
   });
+}
+
+function animateSutdaRetry(event) {
+  const layer = document.querySelector("#chipLayer");
+  if (!layer) return;
+  document.querySelector("#sutdaRetryOverlay")?.remove();
+  const entries = event.entries || [];
+  const overlay = document.createElement("div");
+  overlay.id = "sutdaRetryOverlay";
+  overlay.className = "sutda-retry-overlay";
+  overlay.innerHTML = `
+    <strong>${escapeHtml(event.label || "사구 재경기 중...")}</strong>
+    <div class="sutda-retry-table">
+      ${entries.map((entry, entryIndex) => `
+        <div class="sutda-retry-player">
+          <span>${escapeHtml(entry.name)} ${escapeHtml(entry.position || "")}</span>
+          <div class="sutda-retry-cards">
+            ${(entry.cards || []).map((card, cardIndex) => `
+              <span class="sutda-retry-card-shell" style="--deal-delay:${(cardIndex * entries.length + entryIndex) * 320}ms">
+                ${renderCard(card)}
+              </span>
+            `).join("")}
+          </div>
+          <b>${escapeHtml(entry.hand || "")}</b>
+        </div>
+      `).join("")}
+    </div>
+  `;
+  layer.appendChild(overlay);
+  window.setTimeout(() => overlay.classList.add("dealing"), 40);
+  window.setTimeout(() => overlay.remove(), 5200);
 }
 
 function flashAction(event) {
@@ -584,6 +845,9 @@ document.querySelector("#mobileFillAiButton").addEventListener("click", fillAiSe
 document.querySelector("#mobileNewHandButton").addEventListener("click", newHand);
 document.querySelector("#playerCount").addEventListener("change", newHand);
 document.querySelector("#chatForm").addEventListener("submit", sendChat);
+syncVolumeControls();
+document.querySelector("#volumeControl").addEventListener("input", handleVolumeInput);
+document.querySelector("#mobileVolumeControl").addEventListener("input", handleVolumeInput);
 document.querySelectorAll("[data-panel-tab]").forEach((button) => {
   button.addEventListener("click", () => switchPanelTab(button.dataset.panelTab));
 });
@@ -591,7 +855,11 @@ document.querySelector("#mobileChatButton").addEventListener("click", () => togg
 document.querySelector("#mobileCloseCommsButton").addEventListener("click", () => toggleMobileComms(false));
 document.querySelector("#checkCallButton").addEventListener("click", () => postAction({ type: "checkCall" }));
 document.querySelector("#betRaiseButton").addEventListener("click", () => postAction({ type: "betRaise", amount: Number(document.querySelector("#raiseAmount").value) }));
+document.querySelector("#allInButton").addEventListener("click", goAllIn);
 document.querySelector("#foldButton").addEventListener("click", () => postAction({ type: "fold" }));
+document.querySelector("#raisePresets").addEventListener("click", (event) => {
+  chooseRaisePreset(event.target.closest("[data-raise-preset-kind]"));
+});
 document.querySelector("#showdownMode").addEventListener("change", (event) => postAction({ type: "setMode", mode: event.target.value }));
 document.querySelector("#showdownSutdaCard").addEventListener("change", (event) => postAction({ type: "setSutdaCard", sutdaCard: event.target.value }));
 document.querySelector("#showdownSutdaBoardCard").addEventListener("change", (event) => postAction({ type: "setSutdaBoardCard", sutdaBoardCard: event.target.value }));
@@ -605,6 +873,9 @@ document.querySelector("#mobileHelpButton").addEventListener("click", () => docu
 document.querySelector("#closeHelpButton").addEventListener("click", () => document.querySelector("#helpDialog").close());
 document.querySelector("#helpDialog").addEventListener("click", (event) => {
   if (event.target.id === "helpDialog") event.target.close();
+});
+["pointerdown", "keydown"].forEach((eventName) => {
+  window.addEventListener(eventName, unlockAudio, { once: true });
 });
 window.addEventListener("beforeunload", sendLeaveBeacon);
 

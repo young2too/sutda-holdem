@@ -31,6 +31,7 @@ JSON.stringify([
   ["4 ddang is not sagu", evaluateSutdaPair(c("4", "♠"), c("4", "♥")).name, "4땡"],
   ["9 ddang is not sagu", evaluateSutdaPair(c("9", "♠"), c("9", "♥")).name, "9땡"],
   ["ttang catcher beats 9ddang", compareSutdaValues(evaluateSutdaPair(c("3", "♠"), c("7", "♠")), evaluateSutdaPair(c("9", "♠"), c("9", "♥"))) > 0 ? "win" : "lose", "win"],
+  ["ttang catcher loses to jangddang", compareSutdaValues(evaluateSutdaPair(c("3", "♠"), c("7", "♠")), evaluateSutdaPair(c("10", "♠"), c("10", "♥"))) < 0 ? "lose" : "win", "lose"],
   ["spy beats 18gwang", compareSutdaValues(evaluateSutdaPair(c("4", "♠"), c("7", "♠")), evaluateSutdaPair(c("A", "♠"), c("8", "♠"))) > 0 ? "win" : "lose", "win"],
   ["spy loses 38gwang", compareSutdaValues(evaluateSutdaPair(c("4", "♠"), c("7", "♠")), evaluateSutdaPair(c("3", "♠"), c("8", "♠"))) < 0 ? "lose" : "win", "lose"]
 ]);
@@ -96,3 +97,35 @@ JSON.stringify({
 const selectedBoardResult = JSON.parse(vm.runInContext(selectedBoardScript, ctx));
 console.log(JSON.stringify(selectedBoardResult, null, 2));
 if (selectedBoardResult.selected !== "멍사구" || selectedBoardResult.auto === "멍사구") process.exit(1);
+
+const retryBoundaryScript = `
+function hand(score, name, extra = {}) {
+  return { score, kickers: [], name, ...extra };
+}
+function retryAgainst(retryType, opponent) {
+  return shouldRetrySutda([
+    { player: { name: retryType }, hand: { score: 0, kickers: [], name: retryType, retryType } },
+    { player: { name: opponent.name }, hand: opponent }
+  ]);
+}
+JSON.stringify([
+  ["mung sagu retries against 9ddang", retryAgainst("mungSagu", hand(809, "9땡", { group: "ddang" })), true],
+  ["mung sagu loses to jangddang", retryAgainst("mungSagu", hand(810, "장땡", { group: "ddang" })), false],
+  ["mung sagu loses to 18gwang", retryAgainst("mungSagu", hand(880, "18광땡", { group: "gwang" })), false],
+  ["mung sagu loses to 38gwang", retryAgainst("mungSagu", hand(900, "38광땡", { group: "gwang" })), false],
+  ["sagu retries against ali", retryAgainst("sagu", hand(760, "알리")), true],
+  ["sagu loses to 1ddang", retryAgainst("sagu", hand(801, "1땡", { group: "ddang" })), false],
+  ["sagu loses to 9ddang", retryAgainst("sagu", hand(809, "9땡", { group: "ddang" })), false],
+  ["sagu loses to jangddang", retryAgainst("sagu", hand(810, "장땡", { group: "ddang" })), false]
+]);
+`;
+
+const retryBoundaryResults = JSON.parse(vm.runInContext(retryBoundaryScript, ctx)).map(([label, actual, expected]) => ({
+  label,
+  actual,
+  expected,
+  ok: actual === expected
+}));
+
+console.log(JSON.stringify(retryBoundaryResults, null, 2));
+if (retryBoundaryResults.some((result) => !result.ok)) process.exit(1);

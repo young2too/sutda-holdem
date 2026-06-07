@@ -29,6 +29,7 @@ let handNumber = 0;
 let hostClientId = null;
 let aiTimer = null;
 let actionTimer = null;
+let autoHandTimer = null;
 let chatMessages = [];
 const ACTION_TIMEOUT_MS = 20000;
 const DISCONNECT_GRACE_MS = 15000;
@@ -65,6 +66,7 @@ function createHand(playerCount, previousPlayers) {
       stack: typeof prev.stack === "number" ? prev.stack : 1000,
       bet: 0,
       streetBet: 0,
+      contribution: 0,
       acted: !occupied,
       folded: !occupied,
       ready: !occupied,
@@ -83,10 +85,10 @@ function createHand(playerCount, previousPlayers) {
     const sbIndex = players.findIndex((player) => isOccupied(player) && player.position === "SB");
     const bbIndex = players.findIndex((player) => isOccupied(player) && player.position === "BB");
     if (sbIndex >= 0 && bbIndex >= 0) {
-      postBlind(players[sbIndex], 5);
-      postBlind(players[bbIndex], 10);
-      currentBet = 10;
-      pot = 15;
+      const sbPaid = postBlind(players[sbIndex], 5);
+      const bbPaid = postBlind(players[bbIndex], 10);
+      currentBet = Math.max(sbPaid, bbPaid);
+      pot = sbPaid + bbPaid;
       currentPlayer = firstActiveFromPosition(firstActionPositionForStreet(0, occupiedCount), players, 0);
       log.push("SB 5, BB 10.");
     } else {
@@ -109,6 +111,7 @@ function createHand(playerCount, previousPlayers) {
     lastRaise: 10,
     readyPhase: false,
     showdown: false,
+    cardsRevealed: false,
     players,
     result: null,
     events: [],
@@ -139,10 +142,13 @@ function shuffle(cards) {
 }
 
 function postBlind(player, amount) {
-  player.stack -= amount;
-  player.bet += amount;
-  player.streetBet += amount;
+  const paid = Math.max(0, Math.min(player.stack, amount));
+  player.stack -= paid;
+  player.bet += paid;
+  player.streetBet += paid;
+  player.contribution += paid;
   player.lastAction = `블라인드 ${amount}`;
+  return paid;
 }
 
 function pushEvent(event) {
@@ -190,6 +196,42 @@ function activePlayers() {
   return state.players.filter((player) => isOccupied(player) && !player.folded);
 }
 
+function actionPlayers() {
+  return activePlayers().filter((player) => player.stack > 0);
+}
+
+function shouldAutoShowdown() {
+  return !state.readyPhase && !state.showdown && activePlayers().length > 1 && actionPlayers().length === 0;
+}
+
+function runAutoShowdownIfNeeded() {
+  if (!shouldAutoShowdown()) return false;
+  clearActionTimer();
+  clearAiTimer();
+  while (!state.showdown) {
+    if (state.street >= 3) {
+      doShowdown();
+      return true;
+    }
+    advanceStreet();
+  }
+  return true;
+}
+
+function isHandInProgress() {
+  return Boolean(state && (state.pot > 0 || state.street > 0 || state.readyPhase || state.showdown));
+}
+
+function commitChips(player, amount) {
+  const paid = Math.max(0, Math.min(player.stack, Number(amount) || 0));
+  player.stack -= paid;
+  player.bet += paid;
+  player.streetBet += paid;
+  player.contribution = (player.contribution || 0) + paid;
+  state.pot += paid;
+  return paid;
+}
+
 function firstActiveIndex(players = state.players, start = 0) {
   if (!players.length) return -1;
   const normalizedStart = start >= 0 ? start : 0;
@@ -222,7 +264,7 @@ function firstActiveFromPosition(position, players = state.players, street = sta
   const start = order.indexOf(position);
   const rotatedOrder = start >= 0 ? [...order.slice(start), ...order.slice(0, start)] : order;
   for (const positionName of rotatedOrder) {
-    const index = players.findIndex((player) => isOccupied(player) && !player.folded && player.position === positionName);
+    const index = players.findIndex((player) => isOccupied(player) && !player.folded && player.stack > 0 && player.position === positionName);
     if (index >= 0) return index;
   }
   return -1;
@@ -234,7 +276,7 @@ function nextActiveIndex(from) {
   const start = order.indexOf(player ? player.position : "");
   const rotatedOrder = start >= 0 ? [...order.slice(start + 1), ...order.slice(0, start + 1)] : order;
   for (const positionName of rotatedOrder) {
-    const index = state.players.findIndex((item) => isOccupied(item) && !item.folded && item.position === positionName);
+    const index = state.players.findIndex((item) => isOccupied(item) && !item.folded && item.stack > 0 && item.position === positionName);
     if (index >= 0) return index;
   }
   return -1;
@@ -251,6 +293,7 @@ function playerByClient(clientId) {
 function safeState(clientId, seatId) {
   touchClient(clientId);
   cleanupDisconnectedPlayers();
+  runAutoShowdownIfNeeded();
   scheduleAiStep();
   state.players.filter(isOccupied).forEach(normalizeDeclaration);
   const seat = playerByClient(clientId);
@@ -273,6 +316,7 @@ function safeState(clientId, seatId) {
     sutdaPot: splitPots.sutda,
     readyPhase: state.readyPhase,
     showdown: state.showdown,
+    cardsRevealed: state.cardsRevealed,
     result: publicResult(),
     events: state.events.slice(-40),
     community: visibleCommunity(),
@@ -282,11 +326,12 @@ function safeState(clientId, seatId) {
     chat: chatMessages.slice(-120),
     players: state.players.map((player) => publicPlayer(player, clientId)),
     controls: {
-      canAct: ownsSeat && isOccupied(seat) && state.currentPlayer === seatIdForClient && !state.readyPhase && !state.showdown && !seat.folded && activePlayers().length > 1,
+      canAct: ownsSeat && isOccupied(seat) && state.currentPlayer === seatIdForClient && !state.readyPhase && !state.showdown && !seat.folded && seat.stack > 0 && activePlayers().length > 1,
       canReady: ownsSeat && isOccupied(seat) && state.readyPhase && !state.showdown && !seat.folded && !seat.ready,
-      callAmount: ownsSeat ? Math.max(0, state.currentBet - seat.bet) : 0,
-      minRaiseTo: ownsSeat ? minRaiseTo(seat) : state.currentBet + state.lastRaise,
-      maxRaiseTo: ownsSeat ? seat.bet + seat.stack : state.currentBet,
+      canRaise: ownsSeat ? canRaise(seat) : false,
+      callAmount: ownsSeat ? Math.min(seat.stack, Math.max(0, state.currentBet - seat.bet)) : 0,
+      minRaiseTo: ownsSeat ? displayedMinRaiseTo(seat) : state.currentBet + state.lastRaise,
+      maxRaiseTo: ownsSeat ? maxRaiseTo(seat) : state.currentBet,
       actingLabel: actingPlayer && isOccupied(actingPlayer) ? `${actingPlayer.name} ${actingPlayer.position}` : ""
     }
   };
@@ -309,14 +354,26 @@ function hasHumanPlayer() {
 }
 
 function minRaiseTo(player) {
-  const base = state.currentBet ? state.currentBet + state.lastRaise : state.lastRaise;
-  return Math.min(base, player.bet + player.stack);
+  return state.currentBet ? state.currentBet + state.lastRaise : state.lastRaise;
+}
+
+function maxRaiseTo(player) {
+  return player.bet + player.stack;
+}
+
+function displayedMinRaiseTo(player) {
+  if (!canRaise(player)) return maxRaiseTo(player);
+  return Math.min(minRaiseTo(player), maxRaiseTo(player));
+}
+
+function canRaise(player) {
+  return maxRaiseTo(player) > state.currentBet;
 }
 
 function publicPlayer(player, clientId) {
   const occupied = isOccupied(player);
   const mine = isOwner(player, clientId);
-  const showCards = occupied && !player.folded && (mine || state.showdown);
+  const showCards = occupied && !player.folded && (mine || state.cardsRevealed);
   return {
     id: player.id,
     name: player.name,
@@ -409,6 +466,7 @@ function handleAction(body) {
 }
 
 function scheduleAiStep(delay = 850) {
+  if (runAutoShowdownIfNeeded()) return;
   if (state.showdown) {
     clearActionTimer();
     return;
@@ -433,6 +491,34 @@ function clearAiTimer() {
   if (!aiTimer) return;
   clearTimeout(aiTimer);
   aiTimer = null;
+}
+
+function clearAutoHandTimer() {
+  if (!autoHandTimer) return;
+  clearTimeout(autoHandTimer);
+  autoHandTimer = null;
+}
+
+function scheduleAutoNewHand() {
+  clearAutoHandTimer();
+  const nextHandNumber = state.handNumber;
+  autoHandTimer = setTimeout(() => {
+    autoHandTimer = null;
+    if (!state.showdown || state.handNumber !== nextHandNumber) return;
+    removeBustedPlayers();
+    state = createHand(state.playerCount, state.players);
+    state.log.push("다음 핸드를 자동으로 시작합니다.");
+    scheduleAiStep();
+  }, 4000);
+}
+
+function removeBustedPlayers() {
+  state.players.filter((player) => isOccupied(player) && player.stack <= 0).forEach((player) => {
+    const name = player.name || "Player";
+    state.log.push(`${name} 올인 후 칩이 없어 자동 이석됩니다.`);
+    clearSeat(player);
+  });
+  reassignHostIfNeeded();
 }
 
 function scheduleActionTimer() {
@@ -506,36 +592,43 @@ function chooseAiDeclaration(player) {
 
 function checkCall(player) {
   const owed = Math.max(0, state.currentBet - player.bet);
-  player.stack -= owed;
-  player.bet += owed;
-  player.streetBet += owed;
+  const paid = commitChips(player, owed);
   player.acted = true;
-  state.pot += owed;
-  player.lastAction = owed ? `콜 ${owed}` : "체크";
-  if (owed) state.log.push(`${player.name} ${player.position} 콜 ${owed}.`);
-  pushEvent({ type: owed ? "bet" : "check", playerId: player.id, amount: owed, label: player.lastAction });
+  const allIn = paid > 0 && player.stack === 0;
+  player.lastAction = allIn ? `\uC62C\uC778 ${player.bet}` : (paid ? `\uCF5C ${paid}` : "\uCCB4\uD06C");
+  if (paid) state.log.push(`${player.name} ${player.position} \uCF5C ${paid}.`);
+  pushEvent({ type: paid ? "bet" : "check", playerId: player.id, amount: paid, label: player.lastAction, allIn });
   afterAction();
 }
 
 function betRaise(player, requestedTarget) {
+  const maxTarget = maxRaiseTo(player);
+  if (maxTarget <= state.currentBet) {
+    checkCall(player);
+    return;
+  }
   const minTarget = minRaiseTo(player);
-  const maxTarget = player.bet + player.stack;
-  const targetBet = Math.max(minTarget, Math.min(maxTarget, requestedTarget || minTarget));
+  const requested = Number(requestedTarget) || displayedMinRaiseTo(player);
+  const clampedTarget = Math.min(maxTarget, requested);
+  const targetBet = clampedTarget < minTarget && clampedTarget < maxTarget ? displayedMinRaiseTo(player) : clampedTarget;
+  if (targetBet <= state.currentBet) {
+    checkCall(player);
+    return;
+  }
   const owed = Math.max(0, targetBet - player.bet);
-  const raiseSize = Math.max(state.lastRaise, targetBet - state.currentBet);
-  player.stack -= owed;
-  player.bet += owed;
-  player.streetBet += owed;
+  const previousBet = state.currentBet;
+  const raiseSize = targetBet - previousBet;
+  const paid = commitChips(player, owed);
   player.acted = true;
-  state.pot += owed;
   state.currentBet = player.bet;
-  state.lastRaise = raiseSize;
-  player.lastAction = state.currentBet === state.lastRaise && state.currentBet === player.streetBet ? `베팅 ${state.currentBet}` : `레이즈 ${state.currentBet}`;
+  if (raiseSize >= state.lastRaise) state.lastRaise = raiseSize;
+  const allIn = paid > 0 && player.stack === 0;
+  player.lastAction = allIn ? `\uC62C\uC778 ${state.currentBet}` : (previousBet ? `\uB808\uC774\uC988 ${state.currentBet}` : `\uBCA0\uD305 ${state.currentBet}`);
   activePlayers().forEach((item) => {
-    if (item.id !== player.id) item.acted = false;
+    if (item.id !== player.id && item.stack > 0 && item.bet < state.currentBet) item.acted = false;
   });
-  state.log.push(`${player.name} ${player.position} ${state.currentBet}까지 레이즈.`);
-  pushEvent({ type: "bet", playerId: player.id, amount: owed, label: player.lastAction });
+  state.log.push(`${player.name} ${player.position} ${state.currentBet}\uAE4C\uC9C0 \uB808\uC774\uC988.`);
+  pushEvent({ type: "bet", playerId: player.id, amount: paid, label: player.lastAction, allIn });
   afterAction();
 }
 
@@ -556,8 +649,10 @@ function fold(player) {
     pushEvent({ type: "award", awards: state.result.awards });
     state.pot = 0;
     state.showdown = true;
+    state.cardsRevealed = false;
     state.street = 5;
     state.currentPlayer = -1;
+    scheduleAutoNewHand();
     return;
   }
   afterAction();
@@ -575,8 +670,10 @@ function awardRemainingAfterRemoval() {
   pushEvent({ type: "award", awards: state.result.awards });
   state.pot = 0;
   state.showdown = true;
+  state.cardsRevealed = false;
   state.street = 5;
   state.currentPlayer = -1;
+  scheduleAutoNewHand();
   clearActionTimer();
   clearAiTimer();
 }
@@ -584,10 +681,11 @@ function awardRemainingAfterRemoval() {
 function afterAction() {
   if (isBettingRoundSettled()) advanceStreet();
   else state.currentPlayer = nextActiveIndex(state.currentPlayer);
+  if (state.currentPlayer < 0 && !isBettingRoundSettled()) advanceStreet();
 }
 
 function isBettingRoundSettled() {
-  return activePlayers().every((player) => player.acted && player.bet === state.currentBet);
+  return activePlayers().every((player) => player.acted && (player.bet === state.currentBet || player.stack === 0));
 }
 
 function advanceStreet() {
@@ -601,11 +699,12 @@ function advanceStreet() {
   state.players.forEach((player) => {
     player.bet = 0;
     player.streetBet = 0;
-    player.acted = !isOccupied(player) || player.folded;
-    if (isOccupied(player) && !player.folded) player.lastAction = "";
+    player.acted = !isOccupied(player) || player.folded || player.stack === 0;
+    if (isOccupied(player) && !player.folded) player.lastAction = player.stack === 0 ? "체크" : "";
   });
   state.currentPlayer = firstActiveFromPosition(firstActionPositionForStreet(state.street));
   state.log.push(`${STREET_NAMES[state.street]} 카드가 열렸습니다.`);
+  if (state.currentPlayer < 0 || isBettingRoundSettled()) advanceStreet();
 }
 
 function enterReadyPhase() {
@@ -615,11 +714,12 @@ function enterReadyPhase() {
   state.players.forEach((player) => {
     player.bet = 0;
     player.streetBet = 0;
-    player.ready = !isOccupied(player) || player.folded;
+    player.ready = !isOccupied(player) || player.folded || player.stack === 0;
     if (isOccupied(player) && !player.folded) player.lastAction = "";
     if (isOccupied(player) && !player.folded) chooseDefaultSutdaDeclaration(player);
   });
   state.log.push("리버 베팅 종료. 생존 플레이어의 쇼다운 준비를 기다립니다.");
+  if (activePlayers().every((player) => player.ready)) doShowdown();
 }
 
 function chooseDefaultSutdaDeclaration(player) {
@@ -648,34 +748,69 @@ function doShowdown() {
   state.street = 5;
   state.readyPhase = false;
   state.showdown = true;
+  state.cardsRevealed = true;
   state.currentPlayer = -1;
   const result = settlePots();
   state.result = result;
   result.logs.forEach((line) => state.log.push(line));
   pushEvent({ type: "award", awards: result.awards });
   state.pot = 0;
+  scheduleAutoNewHand();
 }
 
 function settlePots() {
-  const contenders = activePlayers();
+  const sidePots = buildSidePots();
+  if (!sidePots.length) return settlePotAmount(state.pot, activePlayers());
+  const result = { logs: [], awards: [], summaries: [] };
+  sidePots.forEach((pot, index) => {
+    const settled = settlePotAmount(pot.amount, pot.contenders, sidePots.length > 1 ? ` #${index + 1}` : "");
+    result.logs.push(...settled.logs);
+    result.awards.push(...settled.awards);
+    result.summaries.push(...(settled.summaries || []));
+  });
+  return { logs: result.logs, awards: result.awards.filter(Boolean), summaries: result.summaries };
+}
+
+function buildSidePots() {
+  const contributors = state.players.filter((player) => (player.contribution || 0) > 0);
+  const levels = [...new Set(contributors.map((player) => player.contribution || 0))].sort((a, b) => a - b);
+  const pots = [];
+  let previous = 0;
+  levels.forEach((level) => {
+    const contributorsAtLevel = contributors.filter((player) => (player.contribution || 0) >= level);
+    const amount = (level - previous) * contributorsAtLevel.length;
+    const contenders = activePlayers().filter((player) => (player.contribution || 0) >= level);
+    if (amount > 0 && contenders.length) pots.push({ amount, contenders });
+    previous = level;
+  });
+  return pots;
+}
+
+function potLayoutForAmount(amount) {
+  if (state.street >= 3 && !hasSutdaCommunityCard()) return { holdem: amount, sutda: 0 };
+  const holdem = Math.floor(amount / 2);
+  return { holdem, sutda: amount - holdem };
+}
+
+function settlePotAmount(amount, contenders, labelSuffix = "") {
   const holdem = contenders.filter(isHoldemPotParticipant).map((player) => ({ player, hand: evaluateHoldem([...player.cards, ...state.community]) }));
   const holdemWinners = holdem.length ? bestEntries(holdem, "hand") : [];
-  const logs = [`홀덤 최고: ${holdem.length ? holdem.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.hand.name}`).join(" / ") : "참가자 없음"}.`];
+  const logs = [`\uD640\uB364 \uCD5C\uACE0${labelSuffix}: ${holdem.length ? holdem.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.hand.name}`).join(" / ") : "\uCC38\uAC00\uC790 \uC5C6\uC74C"}.`];
   const awards = [];
   const summaries = [];
   if (!hasSutdaCommunityCard()) {
     const forcedHoldem = contenders.map((player) => ({ player, hand: evaluateHoldem([...player.cards, ...state.community]) }));
     const forcedHoldemWinners = bestEntries(forcedHoldem, "hand");
-    logs.push("커뮤니티에 섯다 카드가 없어 섯다 팟은 열리지 않습니다.");
-    awards.push(awardPlayers(forcedHoldemWinners.map((entry) => entry.player), state.pot, "홀덤", logs));
+    logs.push("\uCEE4\uBBA4\uB2C8\uD2F0\uC5D0 \uC12F\uB2E4 \uCE74\uB4DC\uAC00 \uC5C6\uC5B4 \uC12F\uB2E4 \uD31F\uC774 \uC5F4\uB9AC\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.");
+    awards.push(awardPlayers(forcedHoldemWinners.map((entry) => entry.player), amount, `\uD640\uB364${labelSuffix}`, logs));
     return { logs, awards: awards.filter(Boolean), summaries };
   }
   const sutda = contenders.filter(isSutdaPotParticipant).map((player) => ({ player, hand: evaluateSutdaPlayer(player) }));
-  logs.push(`섯다 최고: ${sutda.length ? sutda.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.hand.name}`).join(" / ") : "참가자 없음"}.`);
+  logs.push(`\uC12F\uB2E4 \uCD5C\uACE0${labelSuffix}: ${sutda.length ? sutda.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.hand.name}`).join(" / ") : "\uCC38\uAC00\uC790 \uC5C6\uC74C"}.`);
   const sutdaWinners = sutda.length ? resolveSutdaRetry(sutda, bestEntries(sutda, "hand", compareSutdaValues), logs) : [];
   const swingWinners = contenders.filter((player) => player.mode === "swing" && isSoleWinner(holdemWinners, player) && isSoleWinner(sutdaWinners, player));
   if (swingWinners.length) {
-    awards.push(awardPlayers(swingWinners, state.pot, "스윙", logs));
+    awards.push(awardPlayers(swingWinners, amount, `\uC2A4\uC719${labelSuffix}`, logs));
     return { logs, awards: awards.filter(Boolean), summaries };
   }
   const failedSwingIds = new Set(contenders.filter((player) => player.mode === "swing").map((player) => player.id));
@@ -683,28 +818,27 @@ function settlePots() {
   const sutdaAwardPool = sutda.filter((entry) => !failedSwingIds.has(entry.player.id));
   const holdemAwardWinners = holdemAwardPool.length ? bestEntries(holdemAwardPool, "hand") : [];
   const sutdaAwardWinners = sutdaAwardPool.length ? bestEntries(sutdaAwardPool, "hand", compareSutdaValues) : [];
-  if (failedSwingIds.size) logs.push("스윙 실패자는 양쪽 팟 수상 자격에서 제외합니다.");
+  if (failedSwingIds.size) logs.push("\uC2A4\uC719 \uC2E4\uD328\uC790\uB294 \uC591\uCABD \uD31F \uC218\uC0C1 \uC790\uACA9\uC5D0\uC11C \uC81C\uC678\uB429\uB2C8\uB2E4.");
   if (!sutdaAwardPool.length && holdemAwardPool.length) {
-    logs.push("섯다 팟에 유효한 수상자가 없어 홀덤 팟에 합칩니다.");
-    awards.push(awardPlayers(holdemAwardWinners.map((entry) => entry.player), state.pot, "홀덤", logs));
+    logs.push("\uC12F\uB2E4 \uD31F\uC5D0 \uC720\uD6A8\uD55C \uC218\uC0C1\uC790\uAC00 \uC5C6\uC5B4 \uD640\uB364 \uD31F\uC5D0 \uD569\uCE69\uB2C8\uB2E4.");
+    awards.push(awardPlayers(holdemAwardWinners.map((entry) => entry.player), amount, `\uD640\uB364${labelSuffix}`, logs));
     return { logs, awards: awards.filter(Boolean), summaries };
   }
   if (!holdemAwardPool.length && sutdaAwardPool.length) {
-    logs.push("홀덤 팟에 유효한 수상자가 없어 섯다 팟에 합칩니다.");
-    awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), state.pot, "섯다", logs));
+    logs.push("\uD640\uB364 \uD31F\uC5D0 \uC720\uD6A8\uD55C \uC218\uC0C1\uC790\uAC00 \uC5C6\uC5B4 \uC12F\uB2E4 \uD31F\uC5D0 \uD569\uCE69\uB2C8\uB2E4.");
+    awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), amount, `\uC12F\uB2E4${labelSuffix}`, logs));
     return { logs, awards: awards.filter(Boolean), summaries };
   }
   if (!holdemAwardPool.length && !sutdaAwardPool.length) {
-    logs.push("스윙 플레이어만 남아 전체 팟을 스플릿합니다.");
-    awards.push(awardPlayers(contenders, state.pot, "스윙 실패 스플릿", logs));
+    logs.push("\uC2A4\uC719 \uD50C\uB808\uC774\uC5B4\uB9CC \uB0A8\uC544 \uC804\uCCB4 \uD31F\uC744 \uC2A4\uD50C\uB9BF\uD569\uB2C8\uB2E4.");
+    awards.push(awardPlayers(contenders, amount, `\uC2A4\uC719 \uC2E4\uD328 \uC2A4\uD50C\uB9BF${labelSuffix}`, logs));
     return { logs, awards: awards.filter(Boolean), summaries };
   }
-  const pots = getPotLayout();
-  awards.push(awardPlayers(holdemAwardWinners.map((entry) => entry.player), pots.holdem, "홀덤", logs));
-  awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), pots.sutda, "섯다", logs));
+  const pots = potLayoutForAmount(amount);
+  awards.push(awardPlayers(holdemAwardWinners.map((entry) => entry.player), pots.holdem, `\uD640\uB364${labelSuffix}`, logs));
+  awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), pots.sutda, `\uC12F\uB2E4${labelSuffix}`, logs));
   return { logs, awards: awards.filter(Boolean), summaries };
 }
-
 function isSoleWinner(winners, player) {
   return winners.length === 1 && winners[0].player.id === player.id;
 }
@@ -759,9 +893,24 @@ function resolveSutdaRetry(results, currentWinners, logs) {
     const cards = retryDeck.splice(0, 2);
     return { player: entry.player, cards, hand: evaluateSutdaPair(cards[0], cards[1]) };
   });
+  pushEvent({
+    type: "sutdaRetry",
+    label: hasMungSagu(results) ? "멍사구 재경기 중..." : "사구 재경기 중...",
+    entries: reroll.map((entry) => ({
+      playerId: entry.player.id,
+      name: entry.player.name,
+      position: entry.player.position,
+      cards: entry.cards,
+      hand: entry.hand.name
+    }))
+  });
   logs.push(`재경기 섯다: ${reroll.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.cards.map((card) => card.id).join("+")} ${entry.hand.name}`).join(" / ")}.`);
   return bestEntries(reroll, "hand", compareSutdaValues);
 }
+function hasMungSagu(results) {
+  return results.some((entry) => entry.hand.retryType === "mungSagu");
+}
+
 
 function isSutdaPotParticipant(player) {
   return player.mode === "sutda" || player.mode === "swing";
@@ -773,12 +922,12 @@ function isHoldemPotParticipant(player) {
 
 function shouldRetrySutda(results) {
   const hasSagu = results.some((entry) => entry.hand.retryType === "sagu");
-  const hasMungSagu = results.some((entry) => entry.hand.retryType === "mungSagu");
-  if (!hasSagu && !hasMungSagu) return false;
+  const mungSagu = hasMungSagu(results);
+  if (!hasSagu && !mungSagu) return false;
   const best = bestEntries(results, "hand", compareSutdaValues)[0].hand;
   const ali = { score: 760, kickers: [1, 2], name: "알리" };
   const nineDdang = { score: 809, kickers: [9, 9], name: "9땡", group: "ddang" };
-  return (hasMungSagu && compareSutdaValues(best, nineDdang) <= 0) || (hasSagu && compareSutdaValues(best, ali) <= 0);
+  return (mungSagu && compareSutdaValues(best, nineDdang) <= 0) || (hasSagu && compareSutdaValues(best, ali) <= 0);
 }
 
 function evaluateSutdaPlayer(player) {
@@ -923,7 +1072,7 @@ function compareSutdaValues(a, b) {
 
 function sutdaSpecialBeats(a, b) {
   if (!a || !b) return false;
-  if (a.special === "ttangCatch" && b.group === "ddang") return true;
+  if (a.special === "ttangCatch" && b.group === "ddang" && (b.kickers[0] || 0) < 10) return true;
   if (a.special === "spy" && b.group === "gwang" && b.name !== "38광땡") return true;
   return false;
 }
@@ -971,8 +1120,9 @@ function leaveSeat(body) {
 }
 
 function removeSeat(player, reason) {
-  const wasActive = !state.showdown && !state.readyPhase && state.currentPlayer === player.id && !player.folded;
-  const wasLive = !state.showdown && !player.folded;
+  const inProgress = isHandInProgress();
+  const wasActive = inProgress && !state.showdown && !state.readyPhase && state.currentPlayer === player.id && !player.folded;
+  const wasLive = inProgress && !state.showdown && !player.folded;
   const name = player.name || "Player";
   const position = player.position || "";
   if (wasLive) {
@@ -984,7 +1134,7 @@ function removeSeat(player, reason) {
   state.log.push(`${name} ${position} ${reason}.`);
   clearSeat(player);
   reassignHostIfNeeded();
-  if (state.showdown) return;
+  if (!inProgress || state.showdown) return;
   if (activePlayers().length === 1 && state.pot > 0) {
     awardRemainingAfterRemoval();
     return;
@@ -994,7 +1144,7 @@ function removeSeat(player, reason) {
     return;
   }
   if (wasActive) afterAction();
-  else if (isBettingRoundSettled()) advanceStreet();
+  else if (wasLive && isBettingRoundSettled()) advanceStreet();
 }
 
 function clearSeat(player) {
@@ -1006,6 +1156,7 @@ function clearSeat(player) {
   player.stack = 1000;
   player.bet = 0;
   player.streetBet = 0;
+  player.contribution = 0;
   player.acted = true;
   player.folded = true;
   player.ready = true;
@@ -1025,6 +1176,7 @@ function fillAiSeats(body) {
   if (!body.clientId || body.clientId !== hostClientId) throw new Error("방장만 AI를 채울 수 있습니다.");
   clearAiTimer();
   clearActionTimer();
+  clearAutoHandTimer();
   let filled = 0;
   state.players.forEach((player, index) => {
     if (isOccupied(player)) return;
@@ -1043,6 +1195,7 @@ function startNewHand(body) {
   if (!body.clientId || body.clientId !== hostClientId) throw new Error("방장만 새 핸드를 시작할 수 있습니다.");
   clearAiTimer();
   clearActionTimer();
+  clearAutoHandTimer();
   state = createHand(Number(body.playerCount || state.playerCount), state.players);
   scheduleAiStep();
 }
@@ -1140,3 +1293,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, "0.0.0.0", () => {
   console.log(`화투럼프 섯다 홀덤 서버: http://localhost:${port}`);
 });
+
