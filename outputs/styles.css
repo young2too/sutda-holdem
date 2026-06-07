@@ -831,12 +831,22 @@ select {
 }
 
 .actions .raise-presets button {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 1px;
   min-width: 0;
-  min-height: 30px;
-  padding: 0 8px;
+  min-height: 40px;
+  padding: 4px 8px;
   color: var(--gold);
   font-size: 12px;
   font-weight: 800;
+}
+
+.actions .raise-presets button b {
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .rope-timer {

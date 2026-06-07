@@ -12,6 +12,14 @@ const POSITIONS = {
   9: ["UTG", "UTG+1", "MP", "MP+1", "HJ", "CO", "BTN", "SB", "BB"]
 };
 const BIG_BLIND = 10;
+const AUDIO_SAMPLES = {
+  check: "audio/check.mp3",
+  call: "audio/call.mp3",
+  fold: "audio/fold.mp3",
+  raise: "audio/raise.mp3",
+  allIn: "audio/all-in.mp3",
+  showdown: "audio/showdown.mp3"
+};
 
 const clientId = getClientId();
 let snapshot = null;
@@ -232,22 +240,7 @@ function tone(frequency, duration = 0.12, volume = 0.05, type = "sine", when = 0
 
 function playSound(kind) {
   if (!audioReady) return;
-  speakAction(kind);
-  if (kind === "check") tone(520, 0.08, 0.035, "triangle");
-  if (kind === "fold") tone(170, 0.16, 0.045, "sawtooth");
-  if (kind === "call") {
-    tone(340, 0.09, 0.045, "triangle");
-    tone(440, 0.1, 0.035, "triangle", 0.08);
-  }
-  if (kind === "raise") {
-    tone(420, 0.08, 0.045, "square");
-    tone(630, 0.12, 0.04, "square", 0.08);
-  }
-  if (kind === "allIn") {
-    tone(220, 0.12, 0.055, "sawtooth");
-    tone(440, 0.14, 0.05, "sawtooth", 0.1);
-    tone(880, 0.18, 0.045, "square", 0.22);
-  }
+  if (playSample(kind)) return;
   if (kind === "tick") tone(980, 0.045, 0.028, "square");
   if (kind === "turn") {
     tone(660, 0.11, 0.055, "sine");
@@ -255,17 +248,13 @@ function playSound(kind) {
   }
 }
 
-function speakAction(kind) {
-  const words = { check: "체크", call: "콜", fold: "폴드", raise: "레이즈", allIn: "올인" };
-  const word = words[kind];
-  if (!word || !window.speechSynthesis || audioVolume <= 0) return;
-  const utterance = new SpeechSynthesisUtterance(word);
-  utterance.lang = "ko-KR";
-  utterance.rate = kind === "allIn" ? 0.95 : 1.08;
-  utterance.pitch = kind === "fold" ? 0.75 : kind === "allIn" ? 0.85 : 1;
-  utterance.volume = Math.min(1, audioVolume * 1.25);
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+function playSample(kind) {
+  const src = AUDIO_SAMPLES[kind];
+  if (!src || audioVolume <= 0) return false;
+  const sample = new Audio(src);
+  sample.volume = Math.min(1, audioVolume);
+  sample.play().catch(() => {});
+  return true;
 }
 
 function isAllInShowdownMusic() {
@@ -376,7 +365,10 @@ function renderRaisePresets() {
     ];
   const disabled = !snapshot.controls.canAct || !snapshot.controls.canRaise;
   presets.innerHTML = options.map((option) => (
-    `<button type="button" data-raise-preset-kind="${option.kind}" data-raise-preset-value="${option.value}" ${disabled ? "disabled" : ""}>${option.label}</button>`
+    `<button type="button" data-raise-preset-kind="${option.kind}" data-raise-preset-value="${option.value}" ${disabled ? "disabled" : ""}>
+      <span>${option.label}</span>
+      <b>${presetRaiseTarget(option.kind, option.value)}</b>
+    </button>`
   )).join("");
 }
 
@@ -578,10 +570,14 @@ function hideCardPreview() {
 }
 
 function playVisualEvents() {
-  const events = snapshot.events || [];
-  const maxEventId = events.length ? Math.max(...events.map((event) => event.id)) : 0;
+  if (!snapshot || !Array.isArray(snapshot.events)) return;
   if (visualHandNumber !== snapshot.handNumber) {
     visualHandNumber = snapshot.handNumber;
+    lastVisualEventId = 0;
+  }
+  const events = snapshot.events;
+  const maxEventId = events.reduce((max, event) => Math.max(max, event.id || 0), lastVisualEventId);
+  if (maxEventId <= lastVisualEventId) {
     lastVisualEventId = maxEventId;
     return;
   }
@@ -592,7 +588,8 @@ function playVisualEvents() {
       if (event.type === "bet") {
         animateBet(event);
         const label = String(event.label || "");
-        playSound(event.allIn ? "allIn" : (label.includes("콜") ? "call" : "raise"));
+        const sound = event.allIn ? "allIn" : (label.includes("\uCF5C") ? "call" : "raise");
+        playSound(sound);
       }
       if (event.type === "check" || event.type === "fold") {
         flashAction(event);
@@ -600,6 +597,7 @@ function playVisualEvents() {
       }
       if (event.type === "sutdaRetry") animateSutdaRetry(event);
       if (event.type === "award") {
+        playSound("showdown");
         const retryDelay = events.some((item) => item.id > lastVisualEventId && item.type === "sutdaRetry") ? 4200 : 0;
         animateAwards(event.awards || [], retryDelay);
       }

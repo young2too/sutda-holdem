@@ -1239,7 +1239,7 @@ function serveStatic(req, res) {
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
-    const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".webp": "image/webp" };
+    const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".webp": "image/webp", ".mp3": "audio/mpeg" };
     res.writeHead(200, { "Content-Type": `${types[ext] || "application/octet-stream"}; charset=utf-8` });
     res.end(data);
   });
