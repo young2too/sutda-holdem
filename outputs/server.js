@@ -468,10 +468,10 @@ function scheduleAiStep(delay = 850) {
     return;
   }
   if (state.readyPhase) {
-    clearActionTimer();
     if (!aiTimer && activePlayers().some((player) => player.ai && !player.ready)) {
       aiTimer = setTimeout(runScheduledStep, delay);
     }
+    scheduleReadyTimer();
     return;
   }
   const player = state.players[state.currentPlayer];
@@ -533,6 +533,19 @@ function scheduleActionTimer() {
   actionTimer = setTimeout(() => runActionTimeout(handNumberAtStart, playerIdAtStart), ACTION_TIMEOUT_MS);
 }
 
+function scheduleReadyTimer() {
+  if (actionTimer || !state.readyPhase || state.showdown) return;
+  const pendingHumans = activePlayers().filter((player) => !player.ai && !player.ready);
+  if (!pendingHumans.length) {
+    state.actionDeadline = null;
+    return;
+  }
+  state.actionTimeoutMs = ACTION_TIMEOUT_MS;
+  state.actionDeadline = Date.now() + ACTION_TIMEOUT_MS;
+  const handNumberAtStart = state.handNumber;
+  actionTimer = setTimeout(() => runReadyTimeout(handNumberAtStart), ACTION_TIMEOUT_MS);
+}
+
 function clearActionTimer() {
   if (actionTimer) {
     clearTimeout(actionTimer);
@@ -551,6 +564,21 @@ function runActionTimeout(handNumberAtStart, playerIdAtStart) {
   if (Math.max(0, state.currentBet - player.bet)) fold(player);
   else checkCall(player);
   scheduleAiStep();
+}
+
+function runReadyTimeout(handNumberAtStart) {
+  actionTimer = null;
+  if (state.handNumber !== handNumberAtStart || !state.readyPhase || state.showdown) return;
+  state.actionDeadline = null;
+  activePlayers().forEach((player) => {
+    if (player.ready) return;
+    player.mode = "holdem";
+    player.ready = true;
+    player.lastAction = "홀덤 자동 준비";
+    state.log.push(`${player.name} ${player.position} 시간 초과. 홀덤으로 자동 쇼다운.`);
+  });
+  if (activePlayers().every((player) => player.ready)) doShowdown();
+  else scheduleAiStep();
 }
 
 function runScheduledStep() {
@@ -717,6 +745,7 @@ function enterReadyPhase() {
     if (isOccupied(player) && !player.folded) chooseDefaultSutdaDeclaration(player);
   });
   state.log.push("리버 베팅 종료. 생존 플레이어의 쇼다운 준비를 기다립니다.");
+  scheduleReadyTimer();
 }
 
 function chooseDefaultSutdaDeclaration(player) {
@@ -738,10 +767,16 @@ function markReady(player) {
   player.ready = true;
   player.lastAction = "준비 완료";
   state.log.push(`${player.name} ${player.position} 쇼다운 준비 완료.`);
-  if (activePlayers().every((item) => item.ready)) doShowdown();
+  if (activePlayers().every((item) => item.ready)) {
+    clearActionTimer();
+    doShowdown();
+  } else {
+    scheduleReadyTimer();
+  }
 }
 
 function doShowdown() {
+  clearActionTimer();
   state.street = 5;
   state.readyPhase = false;
   state.showdown = true;
@@ -1143,6 +1178,7 @@ function removeSeat(player, reason) {
   }
   if (state.readyPhase) {
     if (activePlayers().every((item) => item.ready)) doShowdown();
+    else scheduleReadyTimer();
     return;
   }
   if (wasActive) afterAction();

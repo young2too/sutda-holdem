@@ -151,7 +151,7 @@ function updateNicknameControls() {
 function renderActionTimer() {
   const timer = document.querySelector("#ropeTimer");
   const seconds = document.querySelector("#ropeSeconds");
-  const active = Boolean(snapshot.actionDeadline && !snapshot.readyPhase && !snapshot.showdown && snapshot.currentPlayer >= 0);
+  const active = Boolean(snapshot.actionDeadline && !snapshot.showdown && (snapshot.readyPhase || snapshot.currentPlayer >= 0));
   timer.hidden = !active;
   if (!active) {
     actionTimerKey = "";
@@ -159,7 +159,7 @@ function renderActionTimer() {
     return;
   }
   const total = Math.max(1, snapshot.actionTimeoutMs || 20000);
-  const key = `${snapshot.handNumber}:${snapshot.currentPlayer}:${snapshot.actionDeadline}`;
+  const key = `${snapshot.handNumber}:${snapshot.readyPhase ? "showdown" : snapshot.currentPlayer}:${snapshot.actionDeadline}`;
   if (key !== actionTimerKey || Math.abs((snapshot.actionRemainingMs || 0) - getLocalActionRemaining()) > 350) {
     actionTimerKey = key;
     actionTimerSyncedAt = performance.now();
@@ -170,7 +170,9 @@ function renderActionTimer() {
   timer.style.setProperty("--rope-progress", progress);
   timer.classList.toggle("rope-danger", progress <= 0.25);
   if (seconds) seconds.textContent = `${(remaining / 1000).toFixed(2)}s`;
-  const isMine = snapshot.seatId !== null && snapshot.currentPlayer === snapshot.seatId;
+  const isMine = snapshot.readyPhase
+    ? Boolean(snapshot.controls.canReady)
+    : snapshot.seatId !== null && snapshot.currentPlayer === snapshot.seatId;
   if (audioReady && isMine && progress <= 0.25 && performance.now() - lastTickAt > 620) {
     lastTickAt = performance.now();
     playSound("tick");
@@ -323,6 +325,17 @@ function renderActionControls() {
     renderRaisePresets();
     return;
   }
+  if (snapshot.readyPhase) {
+    document.querySelector("#turnLabel").textContent = snapshot.controls.canReady ? "쇼다운 결정" : "쇼다운 대기";
+    document.querySelector("#callLabel").textContent = snapshot.controls.canReady ? "20초 후 홀덤 자동" : "다른 플레이어 준비 대기";
+    document.querySelector("#checkCallButton").textContent = "체크/콜";
+    document.querySelector("#betRaiseButton").textContent = "베팅/레이즈";
+    document.querySelector("#raiseAmount").disabled = true;
+    document.querySelector("#raiseAmountLabel").textContent = "0";
+    document.querySelector("#raiseAmountLabel").value = "0";
+    renderRaisePresets();
+    return;
+  }
   const acting = snapshot.controls.actingLabel || "액션 대기";
   const callAmount = snapshot.controls.callAmount || 0;
   const minRaise = snapshot.controls.minRaiseTo || 10;
@@ -349,7 +362,7 @@ function currentPlayerSeat() {
 
 function renderRaisePresets() {
   const presets = document.querySelector("#raisePresets");
-  if (!presets || !snapshot || snapshot.showdown) {
+  if (!presets || !snapshot || snapshot.readyPhase || snapshot.showdown) {
     if (presets) presets.innerHTML = "";
     return;
   }

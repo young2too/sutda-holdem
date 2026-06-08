@@ -364,5 +364,52 @@ assert(
   threeWayRetryEvent
 );
 
+const readyTimeoutDefaultsToHoldem = run(`
+  clearAiTimer();
+  clearActionTimer();
+  clearAutoHandTimer();
+  state = createHand(2, [
+    { clientId: "p0", name: "Slow0", stack: 1000, lastSeen: Date.now() },
+    { clientId: "p1", name: "Slow1", stack: 1000, lastSeen: Date.now() }
+  ]);
+  state.players.forEach((player) => {
+    player.folded = false;
+    player.ready = false;
+    player.mode = "sutda";
+    player.contribution = 100;
+  });
+  state.pot = 200;
+  state.readyPhase = true;
+  state.showdown = false;
+  state.street = 4;
+  state.currentPlayer = -1;
+  scheduleReadyTimer();
+  const hadDeadline = Boolean(state.actionDeadline);
+  const timeoutMs = state.actionTimeoutMs;
+  runReadyTimeout(state.handNumber);
+  return {
+    hadDeadline,
+    timeoutMs,
+    readyPhase: state.readyPhase,
+    showdown: state.showdown,
+    cardsRevealed: state.cardsRevealed,
+    modes: state.players.map((player) => player.mode),
+    ready: state.players.map((player) => player.ready),
+    lastActions: state.players.map((player) => player.lastAction)
+  };
+`);
+assert(
+  readyTimeoutDefaultsToHoldem.hadDeadline &&
+  readyTimeoutDefaultsToHoldem.timeoutMs === 20000 &&
+  readyTimeoutDefaultsToHoldem.showdown === true &&
+  readyTimeoutDefaultsToHoldem.readyPhase === false &&
+  readyTimeoutDefaultsToHoldem.cardsRevealed === true &&
+  readyTimeoutDefaultsToHoldem.modes.every((mode) => mode === "holdem") &&
+  readyTimeoutDefaultsToHoldem.ready.every(Boolean) &&
+  readyTimeoutDefaultsToHoldem.lastActions.every((action) => action === "홀덤 자동 준비"),
+  "showdown choice timeout did not force holdem showdown",
+  readyTimeoutDefaultsToHoldem
+);
+
 vm.runInContext("clearAiTimer(); clearActionTimer(); clearAutoHandTimer();", ctx);
 console.log("betting bug regression tests passed");
