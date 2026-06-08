@@ -498,6 +498,8 @@ function clearAutoHandTimer() {
 function scheduleAutoNewHand() {
   clearAutoHandTimer();
   const nextHandNumber = state.handNumber;
+  const retryDuration = Math.max(0, ...state.events.filter((event) => event.type === "sutdaRetry").map((event) => Number(event.durationMs) || 0));
+  const delay = Math.max(4000, retryDuration + 2500);
   autoHandTimer = setTimeout(() => {
     autoHandTimer = null;
     if (!state.showdown || state.handNumber !== nextHandNumber) return;
@@ -505,7 +507,7 @@ function scheduleAutoNewHand() {
     state = createHand(state.playerCount, state.players);
     state.log.push("다음 핸드를 자동으로 시작합니다.");
     scheduleAiStep();
-  }, 4000);
+  }, delay);
 }
 
 function removeBustedPlayers() {
@@ -888,19 +890,24 @@ function resolveSutdaRetry(results, currentWinners, logs) {
     const cards = retryDeck.splice(0, 2);
     return { player: entry.player, cards, hand: evaluateSutdaPair(cards[0], cards[1]) };
   });
+  const retryWinners = bestEntries(reroll, "hand", compareSutdaValues);
+  const retryWinnerIds = new Set(retryWinners.map((entry) => entry.player.id));
+  const durationMs = Math.min(16000, Math.max(11000, 8500 + (reroll.length * 700)));
   pushEvent({
     type: "sutdaRetry",
     label: hasMungSagu(results) ? "멍사구 재경기 중..." : "사구 재경기 중...",
+    durationMs,
     entries: reroll.map((entry) => ({
       playerId: entry.player.id,
       name: entry.player.name,
       position: entry.player.position,
       cards: entry.cards,
-      hand: entry.hand.name
+      hand: entry.hand.name,
+      result: retryWinnerIds.has(entry.player.id) ? "win" : "lose"
     }))
   });
   logs.push(`재경기 섯다: ${reroll.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.cards.map((card) => card.id).join("+")} ${entry.hand.name}`).join(" / ")}.`);
-  return bestEntries(reroll, "hand", compareSutdaValues);
+  return retryWinners;
 }
 function hasMungSagu(results) {
   return results.some((entry) => entry.hand.retryType === "mungSagu");

@@ -320,5 +320,49 @@ assert(
   allInRunoutStopsForShowdownChoice
 );
 
+const threeWayRetryEvent = run(`
+  function c(rank, suit) {
+    return {
+      id: rank + suit,
+      rank,
+      suit,
+      month: rank === "A" ? 1 : rank === "J" ? 11 : rank === "Q" ? 12 : rank === "K" ? null : Number(rank),
+      value: rank === "A" ? 14 : rank === "K" ? 13 : rank === "Q" ? 12 : rank === "J" ? 11 : Number(rank)
+    };
+  }
+  state = createHand(3, [
+    { clientId: "p0", name: "Retry0", stack: 1000, lastSeen: Date.now() },
+    { clientId: "p1", name: "Retry1", stack: 1000, lastSeen: Date.now() },
+    { clientId: "p2", name: "Retry2", stack: 1000, lastSeen: Date.now() }
+  ]);
+  state.events = [];
+  state.eventId = 0;
+  const fixedCards = [c("9", "\\u2660"), c("9", "\\u2665"), c("A", "\\u2660"), c("2", "\\u2660"), c("4", "\\u2665"), c("A", "\\u2665")];
+  shuffle = (cards) => [...fixedCards, ...cards.filter((card) => !fixedCards.some((fixed) => fixed.id === card.id))];
+  const results = state.players.map((player, index) => ({
+    player,
+    hand: index === 0
+      ? { score: 0, kickers: [4, 9], name: "사구", retryType: "sagu" }
+      : { score: index, kickers: [index], name: index + "끗" }
+  }));
+  const winners = resolveSutdaRetry(results, [results[2]], state.log);
+  const event = state.events.find((item) => item.type === "sutdaRetry");
+  return {
+    winnerIds: winners.map((entry) => entry.player.id),
+    durationMs: event && event.durationMs,
+    entryCount: event ? event.entries.length : 0,
+    hands: event ? event.entries.map((entry) => entry.hand) : [],
+    results: event ? event.entries.map((entry) => entry.result) : []
+  };
+`);
+assert(
+  threeWayRetryEvent.entryCount === 3 &&
+  threeWayRetryEvent.durationMs >= 11000 &&
+  threeWayRetryEvent.hands.join(",") === "9땡,알리,독사" &&
+  threeWayRetryEvent.results.join(",") === "win,lose,lose",
+  "3-way sutda retry event did not include readable results",
+  threeWayRetryEvent
+);
+
 vm.runInContext("clearAiTimer(); clearActionTimer(); clearAutoHandTimer();", ctx);
 console.log("betting bug regression tests passed");
