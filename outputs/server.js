@@ -33,6 +33,93 @@ let autoHandTimer = null;
 let chatMessages = [];
 const ACTION_TIMEOUT_MS = 20000;
 const DISCONNECT_GRACE_MS = 15000;
+const DEBUG_SCENARIOS = {
+  "sutda-38-vs-spy": {
+    label: "Sutda: 38 gwang vs spy",
+    players: [
+      { cards: [["3", "\u2660"], ["K", "\u2666"]], mode: "sutda", sutdaCard: ["3", "\u2660"], sutdaBoardCard: ["8", "\u2660"] },
+      { cards: [["4", "\u2660"], ["K", "\u2663"]], mode: "sutda", sutdaCard: ["4", "\u2660"], sutdaBoardCard: ["7", "\u2660"] }
+    ],
+    community: [["8", "\u2660"], ["7", "\u2660"], ["2", "\u2665"], ["5", "\u2666"], ["Q", "\u2663"]]
+  },
+  "sutda-spy-vs-18": {
+    label: "Sutda: spy vs 18 gwang",
+    players: [
+      { cards: [["4", "\u2660"], ["K", "\u2666"]], mode: "sutda", sutdaCard: ["4", "\u2660"], sutdaBoardCard: ["7", "\u2660"] },
+      { cards: [["A", "\u2660"], ["K", "\u2663"]], mode: "sutda", sutdaCard: ["A", "\u2660"], sutdaBoardCard: ["8", "\u2660"] }
+    ],
+    community: [["7", "\u2660"], ["8", "\u2660"], ["2", "\u2665"], ["5", "\u2666"], ["Q", "\u2663"]]
+  },
+  "sutda-ttangcatch-vs-9": {
+    label: "Sutda: ttang catcher vs 9 ddang",
+    players: [
+      { cards: [["3", "\u2660"], ["K", "\u2666"]], mode: "sutda", sutdaCard: ["3", "\u2660"], sutdaBoardCard: ["7", "\u2660"] },
+      { cards: [["9", "\u2665"], ["K", "\u2663"]], mode: "sutda", sutdaCard: ["9", "\u2665"], sutdaBoardCard: ["9", "\u2660"] }
+    ],
+    community: [["7", "\u2660"], ["9", "\u2660"], ["2", "\u2665"], ["5", "\u2666"], ["Q", "\u2663"]]
+  },
+  "sutda-ttangcatch-vs-jang": {
+    label: "Sutda: ttang catcher vs jang ddang",
+    players: [
+      { cards: [["3", "\u2660"], ["K", "\u2666"]], mode: "sutda", sutdaCard: ["3", "\u2660"], sutdaBoardCard: ["7", "\u2660"] },
+      { cards: [["10", "\u2665"], ["K", "\u2663"]], mode: "sutda", sutdaCard: ["10", "\u2665"], sutdaBoardCard: ["10", "\u2660"] }
+    ],
+    community: [["7", "\u2660"], ["10", "\u2660"], ["2", "\u2665"], ["5", "\u2666"], ["Q", "\u2663"]]
+  },
+  "sutda-sagu-vs-ali": {
+    label: "Sutda: sagu vs ali retry",
+    players: [
+      { cards: [["4", "\u2665"], ["K", "\u2666"]], mode: "sutda", sutdaCard: ["4", "\u2665"], sutdaBoardCard: ["9", "\u2660"] },
+      { cards: [["A", "\u2665"], ["K", "\u2663"]], mode: "sutda", sutdaCard: ["A", "\u2665"], sutdaBoardCard: ["2", "\u2665"] }
+    ],
+    community: [["9", "\u2660"], ["2", "\u2665"], ["7", "\u2666"], ["5", "\u2666"], ["Q", "\u2663"]]
+  },
+  "sutda-mung-vs-9": {
+    label: "Sutda: mung sagu vs 9 ddang retry",
+    players: [
+      { cards: [["4", "\u2660"], ["K", "\u2666"]], mode: "sutda", sutdaCard: ["4", "\u2660"], sutdaBoardCard: ["9", "\u2660"] },
+      { cards: [["9", "\u2665"], ["K", "\u2663"]], mode: "sutda", sutdaCard: ["9", "\u2665"], sutdaBoardCard: ["9", "\u2660"] }
+    ],
+    community: [["9", "\u2660"], ["2", "\u2665"], ["7", "\u2666"], ["5", "\u2666"], ["Q", "\u2663"]]
+  },
+  "sutda-sagu-multi": {
+    label: "Sutda multi: sagu vs ali vs 9gut",
+    players: [
+      { cards: [["4", "\u2665"], ["K", "\u2666"]], mode: "sutda", sutdaCard: ["4", "\u2665"], sutdaBoardCard: ["9", "\u2660"] },
+      { cards: [["A", "\u2665"], ["K", "\u2663"]], mode: "sutda", sutdaCard: ["A", "\u2665"], sutdaBoardCard: ["2", "\u2665"] },
+      { cards: [["6", "\u2665"], ["K", "\u2660"]], mode: "sutda", sutdaCard: ["6", "\u2665"], sutdaBoardCard: ["3", "\u2665"] }
+    ],
+    community: [["9", "\u2660"], ["2", "\u2665"], ["3", "\u2665"], ["5", "\u2666"], ["Q", "\u2663"]]
+  },
+  "sutda-mung-multi": {
+    label: "Sutda multi: mung sagu vs 9ddang vs jangddang",
+    players: [
+      { cards: [["4", "\u2660"], ["K", "\u2666"]], mode: "sutda", sutdaCard: ["4", "\u2660"], sutdaBoardCard: ["9", "\u2660"] },
+      { cards: [["9", "\u2665"], ["K", "\u2663"]], mode: "sutda", sutdaCard: ["9", "\u2665"], sutdaBoardCard: ["9", "\u2660"] },
+      { cards: [["10", "\u2665"], ["K", "\u2660"]], mode: "sutda", sutdaCard: ["10", "\u2665"], sutdaBoardCard: ["10", "\u2660"] }
+    ],
+    community: [["9", "\u2660"], ["10", "\u2660"], ["2", "\u2665"], ["5", "\u2666"], ["Q", "\u2663"]]
+  },
+  "sutda-special-fourway": {
+    label: "Synthetic 4-way: ttangcatch / 9ddang / 13gwang / spy",
+    allowDuplicates: true,
+    players: [
+      { cards: [["3", "\u2660"], ["K", "\u2666"]], mode: "sutda", sutdaCard: ["3", "\u2660"], sutdaBoardCard: ["7", "\u2660"] },
+      { cards: [["9", "\u2665"], ["K", "\u2663"]], mode: "sutda", sutdaCard: ["9", "\u2665"], sutdaBoardCard: ["9", "\u2660"] },
+      { cards: [["A", "\u2660"], ["Q", "\u2666"]], mode: "sutda", sutdaCard: ["A", "\u2660"], sutdaBoardCard: ["3", "\u2660"] },
+      { cards: [["4", "\u2660"], ["Q", "\u2663"]], mode: "sutda", sutdaCard: ["4", "\u2660"], sutdaBoardCard: ["7", "\u2660"] }
+    ],
+    community: [["7", "\u2660"], ["9", "\u2660"], ["3", "\u2660"], ["5", "\u2666"], ["2", "\u2663"]]
+  },
+  "holdem-royal-vs-fullhouse": {
+    label: "Holdem: royal flush vs full house",
+    players: [
+      { cards: [["A", "\u2660"], ["K", "\u2660"]], mode: "holdem" },
+      { cards: [["9", "\u2665"], ["9", "\u2666"]], mode: "holdem" }
+    ],
+    community: [["Q", "\u2660"], ["J", "\u2660"], ["10", "\u2660"], ["9", "\u2663"], ["5", "\u2665"]]
+  }
+};
 let state = createHand(6, []);
 
 function createHand(playerCount, previousPlayers) {
@@ -575,6 +662,7 @@ function runScheduledStep() {
 }
 
 function chooseAiDeclaration(player) {
+  if (player.debugLockedMode) return;
   if (!canDeclareSutda(player)) {
     player.mode = "holdem";
     return;
@@ -802,7 +890,8 @@ function settlePotAmount(amount, contenders, labelSuffix = "") {
   }
   const sutda = contenders.filter(isSutdaPotParticipant).map((player) => ({ player, hand: evaluateSutdaPlayer(player) }));
   logs.push(`\uC12F\uB2E4 \uCD5C\uACE0${labelSuffix}: ${sutda.length ? sutda.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.hand.name}`).join(" / ") : "\uCC38\uAC00\uC790 \uC5C6\uC74C"}.`);
-  const sutdaWinners = sutda.length ? resolveSutdaRetry(sutda, bestEntries(sutda, "hand", compareSutdaValues), logs) : [];
+  const sutdaContest = sutda.length ? resolveSutdaContest(sutda, logs) : { results: [], winners: [] };
+  const sutdaWinners = sutdaContest.winners;
   const swingWinners = contenders.filter((player) => player.mode === "swing" && isSoleWinner(holdemWinners, player) && isSoleWinner(sutdaWinners, player));
   if (swingWinners.length) {
     awards.push(awardPlayers(swingWinners, amount, `\uC2A4\uC719${labelSuffix}`, logs));
@@ -810,7 +899,7 @@ function settlePotAmount(amount, contenders, labelSuffix = "") {
   }
   const failedSwingIds = new Set(contenders.filter((player) => player.mode === "swing").map((player) => player.id));
   const holdemAwardPool = holdem.filter((entry) => !failedSwingIds.has(entry.player.id));
-  const sutdaAwardPool = sutda.filter((entry) => !failedSwingIds.has(entry.player.id));
+  const sutdaAwardPool = sutdaContest.results.filter((entry) => !failedSwingIds.has(entry.player.id));
   const holdemAwardWinners = holdemAwardPool.length ? bestEntries(holdemAwardPool, "hand") : [];
   const sutdaAwardWinners = sutdaAwardPool.length ? bestEntries(sutdaAwardPool, "hand", compareSutdaValues) : [];
   if (failedSwingIds.size) logs.push("\uC2A4\uC719 \uC2E4\uD328\uC790\uB294 \uC591\uCABD \uD31F \uC218\uC0C1 \uC790\uACA9\uC5D0\uC11C \uC81C\uC678\uB429\uB2C8\uB2E4.");
@@ -821,7 +910,7 @@ function settlePotAmount(amount, contenders, labelSuffix = "") {
   }
   if (!holdemAwardPool.length && sutdaAwardPool.length) {
     logs.push("\uD640\uB364 \uD31F\uC5D0 \uC720\uD6A8\uD55C \uC218\uC0C1\uC790\uAC00 \uC5C6\uC5B4 \uC12F\uB2E4 \uD31F\uC5D0 \uD569\uCE69\uB2C8\uB2E4.");
-    awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), amount, `\uC12F\uB2E4${labelSuffix}`, logs));
+    awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), amount, `\uC12F\uB2E4${labelSuffix}`, logs, sutdaAwardWinners));
     return { logs, awards: awards.filter(Boolean), summaries };
   }
   if (!holdemAwardPool.length && !sutdaAwardPool.length) {
@@ -831,7 +920,7 @@ function settlePotAmount(amount, contenders, labelSuffix = "") {
   }
   const pots = potLayoutForAmount(amount);
   awards.push(awardPlayers(holdemAwardWinners.map((entry) => entry.player), pots.holdem, `\uD640\uB364${labelSuffix}`, logs));
-  awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), pots.sutda, `\uC12F\uB2E4${labelSuffix}`, logs));
+  awards.push(awardPlayers(sutdaAwardWinners.map((entry) => entry.player), pots.sutda, `\uC12F\uB2E4${labelSuffix}`, logs, sutdaAwardWinners));
   return { logs, awards: awards.filter(Boolean), summaries };
 }
 function isSoleWinner(winners, player) {
@@ -846,18 +935,24 @@ function bestEntries(entries, key, comparator = compareValues) {
   return entries.filter((entry) => comparator(entry[key], best[key]) === 0);
 }
 
-function awardPlayers(winners, amount, label, logs) {
+function awardPlayers(winners, amount, label, logs, handEntries = []) {
   if (!amount || !winners.length) return null;
   const split = Math.floor(amount / winners.length);
   const dealerFee = amount - split * winners.length;
+  const handByPlayerId = new Map(handEntries.map((entry) => [entry.player.id, entry.hand.name]));
   winners.forEach((player) => { player.stack += split; });
-  logs.push(`${label} 팟 ${amount}: ${winners.map((player) => `${player.name} ${player.position}`).join(", ")} ${split}씩 획득${dealerFee ? `, 딜러비 ${dealerFee}` : ""}.`);
+  logs.push(`${label} \uD31F ${amount}: ${winners.map((player) => `${player.name} ${player.position}`).join(", ")} ${split}\uC529 \uD68D\uB4DD${dealerFee ? `, \uB51C\uB7EC\uBE44 ${dealerFee}` : ""}.`);
   return {
     label,
     amount,
     share: split,
     dealerFee,
-    winners: winners.map((player) => ({ id: player.id, name: player.name, position: player.position, hand: awardHandSummary(player, label) }))
+    winners: winners.map((player) => ({
+      id: player.id,
+      name: player.name,
+      position: player.position,
+      hand: handByPlayerId.get(player.id) || awardHandSummary(player, label)
+    }))
   };
 }
 
@@ -881,27 +976,43 @@ function holdemSummary(player) {
 }
 
 function resolveSutdaRetry(results, currentWinners, logs) {
-  if (!shouldRetrySutda(results)) return currentWinners;
-  logs.push("사구/멍사구 발생. 섯다 팟 참가자끼리 섯다 전용 덱으로 2장 재경기합니다.");
-  const retryDeck = shuffle(buildDeck().filter(isSutdaUsable));
-  const reroll = results.map((entry) => {
-    const cards = retryDeck.splice(0, 2);
-    return { player: entry.player, cards, hand: evaluateSutdaPair(cards[0], cards[1]) };
-  });
-  pushEvent({
-    type: "sutdaRetry",
-    label: hasMungSagu(results) ? "멍사구 재경기 중..." : "사구 재경기 중...",
-    entries: reroll.map((entry) => ({
-      playerId: entry.player.id,
-      name: entry.player.name,
-      position: entry.player.position,
-      cards: entry.cards,
-      hand: entry.hand.name
-    }))
-  });
-  logs.push(`재경기 섯다: ${reroll.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.cards.map((card) => card.id).join("+")} ${entry.hand.name}`).join(" / ")}.`);
-  return bestEntries(reroll, "hand", compareSutdaValues);
+  return resolveSutdaContest(results, logs, currentWinners).winners;
 }
+
+function resolveSutdaContest(results, logs, currentWinners = bestEntries(results, "hand", compareSutdaValues)) {
+  let contestResults = results;
+  let winners = currentWinners;
+  let retryRound = 0;
+  while (shouldRetrySutda(contestResults)) {
+    retryRound += 1;
+    if (retryRound > 8) {
+      logs.push("\uC0AC\uAD6C/\uBA4D\uC0AC\uAD6C \uC7AC\uACBD\uAE30\uAC00 8\uD68C\uB97C \uCD08\uACFC\uD574 \uD604\uC7AC \uC7AC\uACBD\uAE30 \uACB0\uACFC\uB85C \uC815\uC0B0\uD569\uB2C8\uB2E4.");
+      break;
+    }
+    logs.push("\uC0AC\uAD6C/\uBA4D\uC0AC\uAD6C \uBC1C\uC0DD. \uC12F\uB2E4 \uD31F \uCC38\uAC00\uC790\uB07C\uB9AC \uC12F\uB2E4 \uC804\uC6A9 \uB371\uC73C\uB85C 2\uC7A5 \uC7AC\uACBD\uAE30\uD569\uB2C8\uB2E4.");
+    const retryDeck = shuffle(buildDeck().filter(isSutdaUsable));
+    const reroll = contestResults.map((entry) => {
+      const cards = retryDeck.splice(0, 2);
+      return { player: entry.player, cards, hand: evaluateSutdaPair(cards[0], cards[1]) };
+    });
+    pushEvent({
+      type: "sutdaRetry",
+      label: hasMungSagu(contestResults) ? "\uBA4D\uC0AC\uAD6C \uC7AC\uACBD\uAE30 \uC911..." : "\uC0AC\uAD6C \uC7AC\uACBD\uAE30 \uC911...",
+      entries: reroll.map((entry) => ({
+        playerId: entry.player.id,
+        name: entry.player.name,
+        position: entry.player.position,
+        cards: entry.cards,
+        hand: entry.hand.name
+      }))
+    });
+    logs.push(`\uC7AC\uACBD\uAE30 \uC12F\uB2E4${retryRound > 1 ? ` #${retryRound}` : ""}: ${reroll.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.cards.map((card) => card.id).join("+")} ${entry.hand.name}`).join(" / ")}.`);
+    contestResults = reroll;
+    winners = bestEntries(contestResults, "hand", compareSutdaValues);
+  }
+  return { results: contestResults, winners };
+}
+
 function hasMungSagu(results) {
   return results.some((entry) => entry.hand.retryType === "mungSagu");
 }
@@ -1158,6 +1269,7 @@ function clearSeat(player) {
   player.lastAction = "";
   player.cards = [];
   player.mode = "holdem";
+  player.debugLockedMode = false;
   player.sutdaCard = null;
 }
 
@@ -1193,6 +1305,107 @@ function startNewHand(body) {
   clearAutoHandTimer();
   state = createHand(Number(body.playerCount || state.playerCount), state.players);
   scheduleAiStep();
+}
+
+function debugScenarioList() {
+  return Object.entries(DEBUG_SCENARIOS).map(([id, scenario]) => ({ id, label: scenario.label }));
+}
+
+function applyDebugScenario(body) {
+  if (hostClientId && body.clientId !== hostClientId) throw new Error("Only the host can apply debug scenarios.");
+  clearAiTimer();
+  clearActionTimer();
+  clearAutoHandTimer();
+  const scenario = DEBUG_SCENARIOS[body.scenarioId];
+  if (!scenario) throw new Error("Unknown debug scenario.");
+  const previousPlayers = prepareDebugPlayers(body.clientId, scenario.players.length);
+  state = createHand(state.playerCount, previousPlayers);
+  const deck = buildDeck();
+  const take = (rank, suit) => {
+    const cardIndex = deck.findIndex((card) => card.rank === rank && card.suit === suit);
+    if (cardIndex < 0) throw new Error(`Debug card not found: ${rank}${suit}`);
+    return deck.splice(cardIndex, 1)[0];
+  };
+  const makeCard = (rank, suit, suffix = "") => ({
+    id: `${rank}${suit}${suffix}`,
+    rank,
+    suit,
+    month: rank === "A" ? 1 : rank === "J" ? 11 : rank === "Q" ? 12 : rank === "K" ? null : Number(rank),
+    value: rank === "A" ? 14 : rank === "K" ? 13 : rank === "Q" ? 12 : rank === "J" ? 11 : Number(rank)
+  });
+  const debugCard = (rank, suit, suffix) => scenario.allowDuplicates ? makeCard(rank, suit, suffix) : take(rank, suit);
+  const findCard = (cards, spec) => spec ? cards.find((card) => card.rank === spec[0] && card.suit === spec[1]) : null;
+  const occupied = state.players.filter(isOccupied);
+  occupied.forEach((player, playerIndex) => {
+    if (playerIndex >= scenario.players.length) {
+      player.folded = true;
+      player.acted = true;
+      player.ready = true;
+      player.mode = "holdem";
+      player.debugLockedMode = false;
+      player.contribution = 0;
+    }
+  });
+  scenario.players.forEach((seat, playerIndex) => {
+    const player = occupied[playerIndex];
+    if (!player) return;
+    player.cards = seat.cards.map(([rank, suit], cardIndex) => debugCard(rank, suit, `:p${playerIndex}c${cardIndex}`));
+    player.mode = seat.mode || "holdem";
+    player.folded = false;
+    player.acted = true;
+    player.ready = player.ai;
+    player.debugLockedMode = true;
+    player.bet = 0;
+    player.streetBet = 0;
+    player.contribution = 100;
+    player.stack = Math.max(0, player.stack - 100);
+    player.lastAction = "";
+  });
+  state.community = scenario.community.map(([rank, suit], cardIndex) => debugCard(rank, suit, `:b${cardIndex}`));
+  scenario.players.forEach((seat, playerIndex) => {
+    const player = occupied[playerIndex];
+    if (!player) return;
+    const handCard = findCard(player.cards, seat.sutdaCard);
+    const boardCard = findCard(state.community, seat.sutdaBoardCard);
+    player.sutdaCard = handCard ? handCard.id : player.sutdaCard;
+    player.sutdaBoardCard = boardCard ? boardCard.id : player.sutdaBoardCard;
+  });
+  state.deck = deck;
+  state.street = 4;
+  state.readyPhase = true;
+  state.showdown = false;
+  state.cardsRevealed = false;
+  state.currentPlayer = -1;
+  state.currentBet = 0;
+  state.lastRaise = 10;
+  const debugContenders = occupied.slice(0, scenario.players.length);
+  state.pot = debugContenders.length * 100;
+  state.result = null;
+  state.events = [];
+  state.eventId = 0;
+  state.actionDeadline = null;
+  state.log.push(`DEBUG scenario loaded: ${scenario.label}. Declarations are locked for preset players.`);
+  occupied.forEach((player) => {
+    if (!player.folded && !player.sutdaBoardCard) chooseDefaultSutdaDeclaration(player);
+  });
+  scheduleAiStep();
+}
+
+function prepareDebugPlayers(clientId, minPlayers = 2) {
+  const playerCount = Math.max(6, state.playerCount || 6, minPlayers);
+  const previousPlayers = Array.from({ length: playerCount }, (_, seatIndex) => state.players[seatIndex] || {});
+  let occupied = previousPlayers.filter((player) => player.clientId || player.ai).length;
+  if (!occupied && clientId) {
+    previousPlayers[0] = { clientId, name: "Tester", stack: 1000, lastSeen: Date.now() };
+    if (!hostClientId) hostClientId = clientId;
+    occupied = 1;
+  }
+  for (let seatIndex = 0; occupied < minPlayers && seatIndex < previousPlayers.length; seatIndex += 1) {
+    if (previousPlayers[seatIndex].clientId || previousPlayers[seatIndex].ai) continue;
+    previousPlayers[seatIndex] = { ai: true, name: `AI ${seatIndex + 1}`, stack: 1000, lastSeen: Date.now() };
+    occupied += 1;
+  }
+  return previousPlayers;
 }
 
 function postChat(body) {
@@ -1273,6 +1486,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/new-hand" && req.method === "POST") {
       startNewHand(await readJson(req));
+      return sendJson(res, { ok: true });
+    }
+    if (url.pathname === "/api/debug-scenarios") {
+      return sendJson(res, { scenarios: debugScenarioList() });
+    }
+    if (url.pathname === "/api/debug-scenario" && req.method === "POST") {
+      applyDebugScenario(await readJson(req));
       return sendJson(res, { ok: true });
     }
     if (url.pathname === "/api/action" && req.method === "POST") {

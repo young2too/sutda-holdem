@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node outputs/server.js",
     "check": "node --check outputs/server.js",
-    "test": "node work/test-sutda.js && node work/test-retry-showdown.js && node work/test-action-order.js && node work/test-betting-bugs.js"
+    "test": "node work/test-sutda.js && node work/test-retry-showdown.js && node work/test-sutda-reroll-edge.js && node work/test-action-order.js && node work/test-betting-bugs.js"
   },
   "engines": {
     "node": ">=20"

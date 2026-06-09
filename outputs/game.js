@@ -755,6 +755,38 @@ async function newHand() {
   }
 }
 
+async function initDebugTools() {
+  if (!new URLSearchParams(window.location.search).has("debug")) return;
+  const panel = document.createElement("aside");
+  panel.className = "debug-panel";
+  panel.innerHTML = `
+    <strong>Debug Scenario</strong>
+    <select id="debugScenarioSelect"></select>
+    <button id="debugScenarioButton" type="button">Load</button>
+  `;
+  document.body.appendChild(panel);
+  try {
+    const response = await fetch("/api/debug-scenarios");
+    const data = await response.json();
+    const select = panel.querySelector("#debugScenarioSelect");
+    select.innerHTML = (data.scenarios || []).map((scenario) => (
+      `<option value="${escapeHtml(scenario.id)}">${escapeHtml(scenario.label)}</option>`
+    )).join("");
+    panel.querySelector("#debugScenarioButton").addEventListener("click", () => applyDebugScenario(select.value));
+  } catch (error) {
+    panel.querySelector("#debugScenarioSelect").innerHTML = `<option>${escapeHtml(error.message)}</option>`;
+  }
+}
+
+async function applyDebugScenario(scenarioId) {
+  try {
+    await postJson("/api/debug-scenario", { clientId, scenarioId });
+    await fetchState();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 async function fillAiSeats() {
   try {
     await postJson("/api/fill-ai", { clientId });
@@ -878,5 +910,6 @@ document.querySelector("#helpDialog").addEventListener("click", (event) => {
 window.addEventListener("beforeunload", sendLeaveBeacon);
 
 fetchState();
+initDebugTools();
 pollTimer = setInterval(fetchState, 1000);
 setInterval(renderActionTimer, 50);
