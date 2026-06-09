@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mobile sutda retry fixture</title>
+  <link rel="stylesheet" href="../outputs/styles.css?v=mobile-retry-3">
+</head>
+<body>
+  <main class="app">
+    <section class="table-area">
+      <header class="topbar">
+        <div>
+          <h1>화투럼프 섯다 홀덤</h1>
+        </div>
+        <div class="table-controls">
+          <label>인원<select><option>6인</option></select></label>
+          <label class="nickname-field">닉네임<input value="연근"></label>
+          <button>닉변</button>
+          <button class="mobile-chat-button"><span></span></button>
+          <details class="mobile-menu"><summary><span></span><span></span><span></span></summary></details>
+        </div>
+      </header>
+      <div class="connection-status">재경기 표시 확인 중</div>
+      <div class="score-strip">
+        <div><span>전체 팟</span><strong>240</strong></div>
+        <div><span>홀덤 팟</span><strong>120</strong></div>
+        <div><span>섯다 팟</span><strong>120</strong></div>
+        <div><span>현재 베팅</span><strong>0</strong></div>
+      </div>
+      <section class="table-stage">
+        <div class="poker-table">
+          <div class="table-center">
+            <div class="board-panel">
+              <div class="section-title"><h2>커뮤니티</h2><span>쇼다운</span></div>
+              <div class="cards board-cards">
+                <img class="card" src="../outputs/assets/cards/5_spade.png" alt="">
+                <img class="card" src="../outputs/assets/cards/4_spade.png" alt="">
+                <img class="card" src="../outputs/assets/cards/9_diamond.png" alt="">
+                <img class="card" src="../outputs/assets/cards/6_spade.png" alt="">
+                <img class="card" src="../outputs/assets/cards/7_heart.png" alt="">
+              </div>
+              <div class="center-pot"><span>팟</span><strong>240</strong></div>
+            </div>
+          </div>
+        </div>
+        <section class="players table-seats showdown-seats count-6"></section>
+        <div id="chipLayer" class="chip-layer" aria-hidden="true">
+          <div id="sutdaRetryOverlay" class="sutda-retry-overlay dealing">
+            <div class="sutda-retry-head">
+              <strong>사구 재경기 중...</strong>
+              <span>재경기 결과 확인</span>
+            </div>
+            <div class="sutda-retry-table">
+              <div class="sutda-retry-player sutda-retry-win">
+                <span>연근 SB</span>
+                <div class="sutda-retry-cards">
+                  <span class="sutda-retry-card-shell" style="--deal-delay:0ms"><img class="card" src="../outputs/assets/cards/9_spade.png" alt=""></span>
+                  <span class="sutda-retry-card-shell" style="--deal-delay:320ms"><img class="card" src="../outputs/assets/cards/9_heart.png" alt=""></span>
+                </div>
+                <b>9땡</b>
+                <em>승</em>
+              </div>
+              <div class="sutda-retry-player sutda-retry-lose">
+                <span>AI 2 BB</span>
+                <div class="sutda-retry-cards">
+                  <span class="sutda-retry-card-shell" style="--deal-delay:640ms"><img class="card" src="../outputs/assets/cards/A_spade.png" alt=""></span>
+                  <span class="sutda-retry-card-shell" style="--deal-delay:960ms"><img class="card" src="../outputs/assets/cards/2_spade.png" alt=""></span>
+                </div>
+                <b>알리</b>
+                <em>패</em>
+              </div>
+              <div class="sutda-retry-player sutda-retry-lose">
+                <span>AI 3 BTN</span>
+                <div class="sutda-retry-cards">
+                  <span class="sutda-retry-card-shell" style="--deal-delay:1280ms"><img class="card" src="../outputs/assets/cards/A_heart.png" alt=""></span>
+                  <span class="sutda-retry-card-shell" style="--deal-delay:1600ms"><img class="card" src="../outputs/assets/cards/4_heart.png" alt=""></span>
+                </div>
+                <b>독사</b>
+                <em>패</em>
+              </div>
+              <div class="sutda-retry-player sutda-retry-lose">
+                <span>AI 4 CO</span>
+                <div class="sutda-retry-cards">
+                  <span class="sutda-retry-card-shell" style="--deal-delay:1920ms"><img class="card" src="../outputs/assets/cards/5_spade.png" alt=""></span>
+                  <span class="sutda-retry-card-shell" style="--deal-delay:2240ms"><img class="card" src="../outputs/assets/cards/6_heart.png" alt=""></span>
+                </div>
+                <b>1끗</b>
+                <em>패</em>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <footer class="actions">
+        <div class="action-info"><strong>핸드 종료</strong><span>재경기 결과</span></div>
+        <button>체크/콜</button>
+        <div class="raise-action"><button>레이즈</button></div>
+        <button>올인</button>
+        <button>폴드</button>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>

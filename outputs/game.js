@@ -151,7 +151,7 @@ function updateNicknameControls() {
 function renderActionTimer() {
   const timer = document.querySelector("#ropeTimer");
   const seconds = document.querySelector("#ropeSeconds");
-  const active = Boolean(snapshot.actionDeadline && !snapshot.readyPhase && !snapshot.showdown && snapshot.currentPlayer >= 0);
+  const active = Boolean(snapshot.actionDeadline && !snapshot.showdown && (snapshot.readyPhase || snapshot.currentPlayer >= 0));
   timer.hidden = !active;
   if (!active) {
     actionTimerKey = "";
@@ -159,7 +159,7 @@ function renderActionTimer() {
     return;
   }
   const total = Math.max(1, snapshot.actionTimeoutMs || 20000);
-  const key = `${snapshot.handNumber}:${snapshot.currentPlayer}:${snapshot.actionDeadline}`;
+  const key = `${snapshot.handNumber}:${snapshot.readyPhase ? "showdown" : snapshot.currentPlayer}:${snapshot.actionDeadline}`;
   if (key !== actionTimerKey || Math.abs((snapshot.actionRemainingMs || 0) - getLocalActionRemaining()) > 350) {
     actionTimerKey = key;
     actionTimerSyncedAt = performance.now();
@@ -170,7 +170,9 @@ function renderActionTimer() {
   timer.style.setProperty("--rope-progress", progress);
   timer.classList.toggle("rope-danger", progress <= 0.25);
   if (seconds) seconds.textContent = `${(remaining / 1000).toFixed(2)}s`;
-  const isMine = snapshot.seatId !== null && snapshot.currentPlayer === snapshot.seatId;
+  const isMine = snapshot.readyPhase
+    ? Boolean(snapshot.controls.canReady)
+    : snapshot.seatId !== null && snapshot.currentPlayer === snapshot.seatId;
   if (audioReady && isMine && progress <= 0.25 && performance.now() - lastTickAt > 620) {
     lastTickAt = performance.now();
     playSound("tick");
@@ -323,6 +325,17 @@ function renderActionControls() {
     renderRaisePresets();
     return;
   }
+  if (snapshot.readyPhase) {
+    document.querySelector("#turnLabel").textContent = snapshot.controls.canReady ? "쇼다운 결정" : "쇼다운 대기";
+    document.querySelector("#callLabel").textContent = snapshot.controls.canReady ? "20초 후 홀덤 자동" : "다른 플레이어 준비 대기";
+    document.querySelector("#checkCallButton").textContent = "체크/콜";
+    document.querySelector("#betRaiseButton").textContent = "베팅/레이즈";
+    document.querySelector("#raiseAmount").disabled = true;
+    document.querySelector("#raiseAmountLabel").textContent = "0";
+    document.querySelector("#raiseAmountLabel").value = "0";
+    renderRaisePresets();
+    return;
+  }
   const acting = snapshot.controls.actingLabel || "액션 대기";
   const callAmount = snapshot.controls.callAmount || 0;
   const minRaise = snapshot.controls.minRaiseTo || 10;
@@ -332,6 +345,7 @@ function renderActionControls() {
   document.querySelector("#turnLabel").textContent = snapshot.controls.canAct ? `내 차례 (${acting})` : (snapshot.controls.actingLabel ? `${acting} 차례` : "액션 대기");
   document.querySelector("#callLabel").textContent = callAmount ? `콜 ${callAmount}` : "체크 가능";
   document.querySelector("#checkCallButton").textContent = callAmount ? `콜 ${callAmount}` : "체크";
+  document.querySelector("#betRaiseButton").textContent = snapshot.currentBet > 0 ? "레이즈" : "베팅";
   slider.min = minRaise;
   slider.max = maxRaise;
   slider.step = 5;
@@ -348,11 +362,12 @@ function currentPlayerSeat() {
 
 function renderRaisePresets() {
   const presets = document.querySelector("#raisePresets");
-  if (!presets || !snapshot || snapshot.showdown) {
+  if (!presets || !snapshot || snapshot.readyPhase || snapshot.showdown) {
     if (presets) presets.innerHTML = "";
     return;
   }
-  const options = snapshot.street === 0
+  const hasPreviousBet = (snapshot.currentBet || 0) > 0;
+  const openOptions = snapshot.street === 0
     ? [
       { label: "2BB", kind: "bb", value: 2 },
       { label: "3BB", kind: "bb", value: 3 },
@@ -363,6 +378,14 @@ function renderRaisePresets() {
       { label: "1/2", kind: "pot", value: 1 / 2 },
       { label: "1/1", kind: "pot", value: 1 }
     ];
+  const raiseOptions = hasPreviousBet
+    ? [
+      { label: "2x", kind: "multiple", value: 2 },
+      { label: "2.5x", kind: "multiple", value: 2.5 },
+      { label: "3x", kind: "multiple", value: 3 }
+    ]
+    : [];
+  const options = [...openOptions, ...raiseOptions];
   const disabled = !snapshot.controls.canAct || !snapshot.controls.canRaise;
   presets.innerHTML = options.map((option) => (
     `<button type="button" data-raise-preset-kind="${option.kind}" data-raise-preset-value="${option.value}" ${disabled ? "disabled" : ""}>
@@ -378,9 +401,10 @@ function presetRaiseTarget(kind, value) {
   const minRaise = snapshot.controls.minRaiseTo || BIG_BLIND;
   const maxRaise = snapshot.controls.maxRaiseTo || player.bet + player.stack;
   const callAmount = snapshot.controls.callAmount || 0;
-  const rawTarget = kind === "bb"
-    ? Number(value) * BIG_BLIND
-    : player.bet + callAmount + Math.round(((snapshot.pot || 0) + callAmount) * Number(value) / 5) * 5;
+  let rawTarget;
+  if (kind === "bb") rawTarget = Number(value) * BIG_BLIND;
+  else if (kind === "multiple") rawTarget = Math.round((snapshot.currentBet || BIG_BLIND) * Number(value) / 5) * 5;
+  else rawTarget = player.bet + callAmount + Math.round(((snapshot.pot || 0) + callAmount) * Number(value) / 5) * 5;
   return Math.max(minRaise, Math.min(maxRaise, rawTarget));
 }
 
@@ -598,7 +622,9 @@ function playVisualEvents() {
       if (event.type === "sutdaRetry") animateSutdaRetry(event);
       if (event.type === "award") {
         playSound("showdown");
-        const retryDelay = events.some((item) => item.id > lastVisualEventId && item.type === "sutdaRetry") ? 4200 : 0;
+        const retryDelay = Math.max(0, ...events
+          .filter((item) => item.id > lastVisualEventId && item.type === "sutdaRetry")
+          .map((item) => Number(item.durationMs) || retryDisplayDuration(item)));
         animateAwards(event.awards || [], retryDelay);
       }
     });
@@ -652,14 +678,18 @@ function animateSutdaRetry(event) {
   if (!layer) return;
   document.querySelector("#sutdaRetryOverlay")?.remove();
   const entries = event.entries || [];
+  const durationMs = retryDisplayDuration(event);
   const overlay = document.createElement("div");
   overlay.id = "sutdaRetryOverlay";
   overlay.className = "sutda-retry-overlay";
   overlay.innerHTML = `
-    <strong>${escapeHtml(event.label || "사구 재경기 중...")}</strong>
+    <div class="sutda-retry-head">
+      <strong>${escapeHtml(event.label || "사구 재경기 중...")}</strong>
+      <span>재경기 결과 확인</span>
+    </div>
     <div class="sutda-retry-table">
       ${entries.map((entry, entryIndex) => `
-        <div class="sutda-retry-player">
+        <div class="sutda-retry-player sutda-retry-${entry.result === "win" ? "win" : "lose"}">
           <span>${escapeHtml(entry.name)} ${escapeHtml(entry.position || "")}</span>
           <div class="sutda-retry-cards">
             ${(entry.cards || []).map((card, cardIndex) => `
@@ -669,13 +699,20 @@ function animateSutdaRetry(event) {
             `).join("")}
           </div>
           <b>${escapeHtml(entry.hand || "")}</b>
+          <em>${entry.result === "win" ? "승" : "패"}</em>
         </div>
       `).join("")}
     </div>
   `;
   layer.appendChild(overlay);
   window.setTimeout(() => overlay.classList.add("dealing"), 40);
-  window.setTimeout(() => overlay.remove(), 5200);
+  window.setTimeout(() => overlay.classList.add("leaving"), Math.max(0, durationMs - 650));
+  window.setTimeout(() => overlay.remove(), durationMs);
+}
+
+function retryDisplayDuration(event) {
+  const entries = event.entries || [];
+  return Math.min(16000, Math.max(11000, Number(event.durationMs) || (8500 + entries.length * 700)));
 }
 
 function flashAction(event) {

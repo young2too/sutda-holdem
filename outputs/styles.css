@@ -614,27 +614,43 @@ button:disabled {
   left: 50%;
   top: 50%;
   z-index: 34;
-  width: min(520px, 78%);
+  width: min(900px, 92%);
+  max-height: min(76vh, 680px);
   display: grid;
-  gap: 10px;
+  gap: 12px;
   border: 1px solid rgba(223, 186, 99, 0.72);
   border-radius: 8px;
-  padding: 12px;
+  padding: 14px;
   background: rgba(5, 22, 19, 0.94);
   box-shadow: 0 22px 46px rgba(0, 0, 0, 0.46);
   text-align: center;
+  overflow: auto;
   transform: translate(-50%, -50%) scale(0.96);
   animation: retry-panel-in 180ms ease-out forwards;
 }
 
-.sutda-retry-overlay > strong {
+.sutda-retry-overlay.leaving {
+  animation: retry-panel-out 520ms ease-in forwards;
+}
+
+.sutda-retry-head {
+  display: grid;
+  gap: 3px;
+}
+
+.sutda-retry-head strong {
   color: var(--gold);
   font-size: 18px;
 }
 
+.sutda-retry-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .sutda-retry-table {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 8px;
 }
 
@@ -644,8 +660,17 @@ button:disabled {
   justify-items: center;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
-  padding: 8px;
+  padding: 9px;
   background: rgba(255, 255, 255, 0.05);
+}
+
+.sutda-retry-win {
+  border-color: rgba(223, 186, 99, 0.82);
+  background: rgba(223, 186, 99, 0.1);
+}
+
+.sutda-retry-lose {
+  opacity: 0.82;
 }
 
 .sutda-retry-player span {
@@ -658,9 +683,9 @@ button:disabled {
 
 .sutda-retry-cards {
   display: flex;
-  min-height: 68px;
+  min-height: 84px;
   justify-content: center;
-  gap: 5px;
+  gap: 7px;
 }
 
 .sutda-retry-card-shell {
@@ -670,8 +695,8 @@ button:disabled {
 }
 
 .sutda-retry-card-shell .card {
-  width: 44px;
-  height: 64px;
+  width: 56px;
+  height: 81px;
   border-radius: 5px;
 }
 
@@ -681,15 +706,38 @@ button:disabled {
 }
 
 .sutda-retry-player b {
-  min-height: 18px;
+  min-height: 20px;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 13px;
+}
+
+.sutda-retry-player em {
+  min-width: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.sutda-retry-win em {
+  border-color: rgba(223, 186, 99, 0.72);
+  color: var(--gold);
 }
 
 @keyframes retry-panel-in {
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes retry-panel-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.98);
   }
 }
 
@@ -1846,6 +1894,61 @@ select {
   .showdown-seats .player-award-hand {
     grid-column: 1 / -1;
     white-space: nowrap;
+  }
+
+  .sutda-retry-overlay {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    z-index: 60;
+    width: min(calc(100vw - 20px), 300px);
+    max-height: min(74dvh, 620px);
+    padding: 10px;
+    gap: 9px;
+    background: rgba(5, 22, 19, 0.985);
+  }
+
+  .sutda-retry-head strong {
+    font-size: 15px;
+  }
+
+  .sutda-retry-head span {
+    font-size: 11px;
+  }
+
+  .sutda-retry-table {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .sutda-retry-player {
+    gap: 5px;
+    padding: 7px 5px;
+  }
+
+  .sutda-retry-player span {
+    font-size: 10px;
+  }
+
+  .sutda-retry-cards {
+    min-height: 68px;
+    gap: 4px;
+  }
+
+  .sutda-retry-card-shell .card {
+    width: 43px;
+    height: 62px;
+  }
+
+  .sutda-retry-player b {
+    min-height: 17px;
+    font-size: 11px;
+  }
+
+  .sutda-retry-player em {
+    min-width: 30px;
+    padding: 1px 7px;
+    font-size: 10px;
   }
 
   .made-panel {

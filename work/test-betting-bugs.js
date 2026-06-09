@@ -320,5 +320,96 @@ assert(
   allInRunoutStopsForShowdownChoice
 );
 
+const threeWayRetryEvent = run(`
+  function c(rank, suit) {
+    return {
+      id: rank + suit,
+      rank,
+      suit,
+      month: rank === "A" ? 1 : rank === "J" ? 11 : rank === "Q" ? 12 : rank === "K" ? null : Number(rank),
+      value: rank === "A" ? 14 : rank === "K" ? 13 : rank === "Q" ? 12 : rank === "J" ? 11 : Number(rank)
+    };
+  }
+  state = createHand(3, [
+    { clientId: "p0", name: "Retry0", stack: 1000, lastSeen: Date.now() },
+    { clientId: "p1", name: "Retry1", stack: 1000, lastSeen: Date.now() },
+    { clientId: "p2", name: "Retry2", stack: 1000, lastSeen: Date.now() }
+  ]);
+  state.events = [];
+  state.eventId = 0;
+  const fixedCards = [c("9", "\\u2660"), c("9", "\\u2665"), c("A", "\\u2660"), c("2", "\\u2660"), c("4", "\\u2665"), c("A", "\\u2665")];
+  shuffle = (cards) => [...fixedCards, ...cards.filter((card) => !fixedCards.some((fixed) => fixed.id === card.id))];
+  const results = state.players.map((player, index) => ({
+    player,
+    hand: index === 0
+      ? { score: 0, kickers: [4, 9], name: "사구", retryType: "sagu" }
+      : { score: index, kickers: [index], name: index + "끗" }
+  }));
+  const winners = resolveSutdaRetry(results, [results[2]], state.log);
+  const event = state.events.find((item) => item.type === "sutdaRetry");
+  return {
+    winnerIds: winners.map((entry) => entry.player.id),
+    durationMs: event && event.durationMs,
+    entryCount: event ? event.entries.length : 0,
+    hands: event ? event.entries.map((entry) => entry.hand) : [],
+    results: event ? event.entries.map((entry) => entry.result) : []
+  };
+`);
+assert(
+  threeWayRetryEvent.entryCount === 3 &&
+  threeWayRetryEvent.durationMs >= 11000 &&
+  threeWayRetryEvent.hands.join(",") === "9땡,알리,독사" &&
+  threeWayRetryEvent.results.join(",") === "win,lose,lose",
+  "3-way sutda retry event did not include readable results",
+  threeWayRetryEvent
+);
+
+const readyTimeoutDefaultsToHoldem = run(`
+  clearAiTimer();
+  clearActionTimer();
+  clearAutoHandTimer();
+  state = createHand(2, [
+    { clientId: "p0", name: "Slow0", stack: 1000, lastSeen: Date.now() },
+    { clientId: "p1", name: "Slow1", stack: 1000, lastSeen: Date.now() }
+  ]);
+  state.players.forEach((player) => {
+    player.folded = false;
+    player.ready = false;
+    player.mode = "sutda";
+    player.contribution = 100;
+  });
+  state.pot = 200;
+  state.readyPhase = true;
+  state.showdown = false;
+  state.street = 4;
+  state.currentPlayer = -1;
+  scheduleReadyTimer();
+  const hadDeadline = Boolean(state.actionDeadline);
+  const timeoutMs = state.actionTimeoutMs;
+  runReadyTimeout(state.handNumber);
+  return {
+    hadDeadline,
+    timeoutMs,
+    readyPhase: state.readyPhase,
+    showdown: state.showdown,
+    cardsRevealed: state.cardsRevealed,
+    modes: state.players.map((player) => player.mode),
+    ready: state.players.map((player) => player.ready),
+    lastActions: state.players.map((player) => player.lastAction)
+  };
+`);
+assert(
+  readyTimeoutDefaultsToHoldem.hadDeadline &&
+  readyTimeoutDefaultsToHoldem.timeoutMs === 20000 &&
+  readyTimeoutDefaultsToHoldem.showdown === true &&
+  readyTimeoutDefaultsToHoldem.readyPhase === false &&
+  readyTimeoutDefaultsToHoldem.cardsRevealed === true &&
+  readyTimeoutDefaultsToHoldem.modes.every((mode) => mode === "holdem") &&
+  readyTimeoutDefaultsToHoldem.ready.every(Boolean) &&
+  readyTimeoutDefaultsToHoldem.lastActions.every((action) => action === "홀덤 자동 준비"),
+  "showdown choice timeout did not force holdem showdown",
+  readyTimeoutDefaultsToHoldem
+);
+
 vm.runInContext("clearAiTimer(); clearActionTimer(); clearAutoHandTimer();", ctx);
 console.log("betting bug regression tests passed");

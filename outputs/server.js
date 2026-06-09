@@ -555,10 +555,10 @@ function scheduleAiStep(delay = 850) {
     return;
   }
   if (state.readyPhase) {
-    clearActionTimer();
     if (!aiTimer && activePlayers().some((player) => player.ai && !player.ready)) {
       aiTimer = setTimeout(runScheduledStep, delay);
     }
+    scheduleReadyTimer();
     return;
   }
   const player = state.players[state.currentPlayer];
@@ -585,6 +585,8 @@ function clearAutoHandTimer() {
 function scheduleAutoNewHand() {
   clearAutoHandTimer();
   const nextHandNumber = state.handNumber;
+  const retryDuration = Math.max(0, ...state.events.filter((event) => event.type === "sutdaRetry").map((event) => Number(event.durationMs) || 0));
+  const delay = Math.max(4000, retryDuration + 2500);
   autoHandTimer = setTimeout(() => {
     autoHandTimer = null;
     if (!state.showdown || state.handNumber !== nextHandNumber) return;
@@ -592,7 +594,7 @@ function scheduleAutoNewHand() {
     state = createHand(state.playerCount, state.players);
     state.log.push("다음 핸드를 자동으로 시작합니다.");
     scheduleAiStep();
-  }, 4000);
+  }, delay);
 }
 
 function removeBustedPlayers() {
@@ -618,6 +620,19 @@ function scheduleActionTimer() {
   actionTimer = setTimeout(() => runActionTimeout(handNumberAtStart, playerIdAtStart), ACTION_TIMEOUT_MS);
 }
 
+function scheduleReadyTimer() {
+  if (actionTimer || !state.readyPhase || state.showdown) return;
+  const pendingHumans = activePlayers().filter((player) => !player.ai && !player.ready);
+  if (!pendingHumans.length) {
+    state.actionDeadline = null;
+    return;
+  }
+  state.actionTimeoutMs = ACTION_TIMEOUT_MS;
+  state.actionDeadline = Date.now() + ACTION_TIMEOUT_MS;
+  const handNumberAtStart = state.handNumber;
+  actionTimer = setTimeout(() => runReadyTimeout(handNumberAtStart), ACTION_TIMEOUT_MS);
+}
+
 function clearActionTimer() {
   if (actionTimer) {
     clearTimeout(actionTimer);
@@ -636,6 +651,21 @@ function runActionTimeout(handNumberAtStart, playerIdAtStart) {
   if (Math.max(0, state.currentBet - player.bet)) fold(player);
   else checkCall(player);
   scheduleAiStep();
+}
+
+function runReadyTimeout(handNumberAtStart) {
+  actionTimer = null;
+  if (state.handNumber !== handNumberAtStart || !state.readyPhase || state.showdown) return;
+  state.actionDeadline = null;
+  activePlayers().forEach((player) => {
+    if (player.ready) return;
+    player.mode = "holdem";
+    player.ready = true;
+    player.lastAction = "홀덤 자동 준비";
+    state.log.push(`${player.name} ${player.position} 시간 초과. 홀덤으로 자동 쇼다운.`);
+  });
+  if (activePlayers().every((player) => player.ready)) doShowdown();
+  else scheduleAiStep();
 }
 
 function runScheduledStep() {
@@ -803,6 +833,7 @@ function enterReadyPhase() {
     if (isOccupied(player) && !player.folded) chooseDefaultSutdaDeclaration(player);
   });
   state.log.push("리버 베팅 종료. 생존 플레이어의 쇼다운 준비를 기다립니다.");
+  scheduleReadyTimer();
 }
 
 function chooseDefaultSutdaDeclaration(player) {
@@ -824,10 +855,16 @@ function markReady(player) {
   player.ready = true;
   player.lastAction = "준비 완료";
   state.log.push(`${player.name} ${player.position} 쇼다운 준비 완료.`);
-  if (activePlayers().every((item) => item.ready)) doShowdown();
+  if (activePlayers().every((item) => item.ready)) {
+    clearActionTimer();
+    doShowdown();
+  } else {
+    scheduleReadyTimer();
+  }
 }
 
 function doShowdown() {
+  clearActionTimer();
   state.street = 5;
   state.readyPhase = false;
   state.showdown = true;
@@ -995,20 +1032,24 @@ function resolveSutdaContest(results, logs, currentWinners = bestEntries(results
       const cards = retryDeck.splice(0, 2);
       return { player: entry.player, cards, hand: evaluateSutdaPair(cards[0], cards[1]) };
     });
+    winners = bestEntries(reroll, "hand", compareSutdaValues);
+    const retryWinnerIds = new Set(winners.map((entry) => entry.player.id));
+    const durationMs = Math.min(16000, Math.max(11000, 8500 + (reroll.length * 700)));
     pushEvent({
       type: "sutdaRetry",
       label: hasMungSagu(contestResults) ? "\uBA4D\uC0AC\uAD6C \uC7AC\uACBD\uAE30 \uC911..." : "\uC0AC\uAD6C \uC7AC\uACBD\uAE30 \uC911...",
+      durationMs,
       entries: reroll.map((entry) => ({
         playerId: entry.player.id,
         name: entry.player.name,
         position: entry.player.position,
         cards: entry.cards,
-        hand: entry.hand.name
+        hand: entry.hand.name,
+        result: retryWinnerIds.has(entry.player.id) ? "win" : "lose"
       }))
     });
     logs.push(`\uC7AC\uACBD\uAE30 \uC12F\uB2E4${retryRound > 1 ? ` #${retryRound}` : ""}: ${reroll.map((entry) => `${entry.player.name} ${entry.player.position} ${entry.cards.map((card) => card.id).join("+")} ${entry.hand.name}`).join(" / ")}.`);
     contestResults = reroll;
-    winners = bestEntries(contestResults, "hand", compareSutdaValues);
   }
   return { results: contestResults, winners };
 }
@@ -1247,6 +1288,7 @@ function removeSeat(player, reason) {
   }
   if (state.readyPhase) {
     if (activePlayers().every((item) => item.ready)) doShowdown();
+    else scheduleReadyTimer();
     return;
   }
   if (wasActive) afterAction();
